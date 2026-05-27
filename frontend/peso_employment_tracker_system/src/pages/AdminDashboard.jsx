@@ -82,7 +82,7 @@ export default function AdminDashboard() {
   const getAdminUser = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const adminRes = await fetch(`${API_BASE}/admin`, {
+      const adminRes = await fetch(`${API_BASE}/admin/admin-user`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

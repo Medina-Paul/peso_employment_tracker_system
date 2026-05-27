@@ -26,7 +26,7 @@ router.get('/applicants', verifyToken, async (req, res) => {
 });
 
 //Fetch admin user details
-router.get('/admin', verifyToken, async (req, res) => {
+router.get('/admin-user', verifyToken, async (req, res) => {
   try {
     // authRoutes uses `admin_users` and stores `username` there. Query the same table.
     const admin = await pool.query(
