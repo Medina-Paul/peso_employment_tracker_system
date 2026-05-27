@@ -378,20 +378,20 @@ export default function AdminDashboard() {
           <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] overscroll-none">
 
             {/* Modal Header */}
-            <div className="px-8 py-5 border-b-4 border-red-800 bg-blue-800/70 flex justify-between items-center shrink-0">
+            <div className="px-8 py-5 border-b-4 border-red-800 bg-white flex justify-between items-center shrink-0">
               <div>
-                <h2 className="text-xl font-extrabold text-white tracking-wide">
+                <h2 className="text-xl font-extrabold text-black tracking-wide">
                   Applicant Profile
                 </h2>
                 <p className="text-[#FF0000] text-md font-semibold mt-1">ID: APP-{selectedApplicant.applicant_id}</p>
               </div>
-              <button onClick={() => setSelectedApplicant(null)} className="text-blue-white text-white hover:text-gray-200 p-2 animateFadeIn">
+              <button onClick={() => setSelectedApplicant(null)} className="text-blue-white text-black hover:text-gray-200 p-2 animateFadeIn">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-8 overflow-y-auto space-y-10 bg-white">
+            <div className="p-8 overflow-y-auto space-y-10 bg-gray-50">
               {isBlindMode && (
                 <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-5 py-4 rounded-xl text-sm flex items-start gap-4 shadow-sm">
                   <svg className="w-6 h-6 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
@@ -403,7 +403,7 @@ export default function AdminDashboard() {
               )}
 
               {/* 1. Personal Background */}
-              <div className="bg-[#F8FAFC] border border-gray-200 rounded-2xl p-8">
+              <div className="bg-white border border-gray-200 rounded-2xl p-8">
                 <h3 className="text-lg font-extrabold text-blue-900 border-b-2 border-red-600 pb-2 inline-block mb-6">Personal & Background</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-y-6 gap-x-8 text-sm">
                   <div className="col-span-1 md:col-span-2">
@@ -460,7 +460,7 @@ export default function AdminDashboard() {
               ) : (
                 <>
                   {/* 2. Education Details */}
-                  <div className="bg-[#F8FAFC] border border-gray-200 rounded-2xl p-8">
+                  <div className="bg-white border border-gray-200 rounded-2xl p-8">
                     <h3 className="text-lg font-extrabold text-blue-900 border-b-2 border-red-600 pb-2 inline-block mb-6">Education Details</h3>
                     {selectedApplicant.education?.length > 0 ? (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -482,7 +482,7 @@ export default function AdminDashboard() {
                   </div>
 
                   {/* 3. Credentials and Trainings */}
-                  <div className="bg-[#F8FAFC] border border-gray-200 rounded-2xl p-8">
+                  <div className="bg-white border border-gray-200 rounded-2xl p-8">
                     <h3 className="text-lg font-extrabold text-blue-900 border-b-2 border-red-600 pb-2 inline-block mb-6">Credentials & Trainings</h3>
 
                     <div className="space-y-8">
@@ -541,7 +541,7 @@ export default function AdminDashboard() {
                   </div>
 
                   {/* 4. Employment History */}
-                  <div className="bg-[#F8FAFC] border border-gray-200 rounded-2xl p-8">
+                  <div className="bg-white border border-gray-200 rounded-2xl p-8">
                     <h3 className="text-lg font-extrabold text-blue-900 border-b-2 border-red-600 pb-2 inline-block mb-6">Employment History</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm mb-8 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                       <div>
@@ -581,10 +581,10 @@ export default function AdminDashboard() {
               )}
             </div>
 
-            <div className="px-8 py-5 border-t border-gray-200 bg-gray-50 flex justify-end gap-4 shrink-0">
+            <div className="px-8 py-5 border-t border-gray-200 bg-white flex justify-end gap-4 shrink-0">
               <button
                 onClick={() => setSelectedApplicant(null)}
-                className="px-8 py-3 border-2 border-gray-100 text-gray-200 rounded-xl bg-blue-800/80 hover:bg-red-600 hover:border-gray-300 font-bold transition-colors shadow-sm"
+                className="px-8 py-3 border-2 border-gray-100 text-white rounded-xl bg-blue-800/80 hover:bg-red-600 hover:border-gray-300 font-bold transition-colors shadow-sm"
               >
                 Close Profile
               </button>
