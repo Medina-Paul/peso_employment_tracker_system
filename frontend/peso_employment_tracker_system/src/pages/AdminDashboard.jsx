@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export default function AdminDashboard() {
-  // Now starts as an empty array, waiting for the database!
   const [applicants, setApplicants] = useState([]);
   const [isBlindMode, setIsBlindMode] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -45,7 +44,6 @@ export default function AdminDashboard() {
     const newStatus = type === 'hire' ? 'Hired' : 'Rejected';
 
     try {
-      // Tell the database to update the status
       const token = localStorage.getItem('adminToken');
       await fetch(`${API_BASE}/admin/applicants/${applicant.applicant_id}/status`, {
         method: 'PUT',
@@ -56,7 +54,6 @@ export default function AdminDashboard() {
         body: JSON.stringify({ status: newStatus })
       });
 
-      // Update the React UI to match the database
       setApplicants(applicants.map(app =>
         app.applicant_id === applicant.applicant_id ? { ...app, status: newStatus } : app
       ));
@@ -72,23 +69,35 @@ export default function AdminDashboard() {
   // --- 3. VIEW FULL PROFILE FETCH ---
   const handleViewDetails = async (app) => {
     setIsLoadingProfile(true);
-    setSelectedApplicant(app); // Show the modal immediately with basic info
+    setSelectedApplicant(app);
 
     try {
-      // Fetch the deep data from your normalized tables concurrently
-      const [credRes, trainRes] = await Promise.all([
-        fetch(`${API_BASE}/credentials/${app.applicant_id}`),
-        fetch(`${API_BASE}/trainings/${app.applicant_id}`)
+      // Fetch ALL deep data concurrently from your normalized tables
+      // Ensure these endpoints exist in your Express backend!
+      const [credRes, trainRes, eduRes, langRes, empRes] = await Promise.all([
+        fetch(`${API_BASE}/credentials/${app.applicant_id}`).catch(() => ({ ok: false })),
+        fetch(`${API_BASE}/trainings/${app.applicant_id}`).catch(() => ({ ok: false })),
+        fetch(`${API_BASE}/education/${app.applicant_id}`).catch(() => ({ ok: false })),
+        fetch(`${API_BASE}/linguistics/${app.applicant_id}`).catch(() => ({ ok: false })),
+        fetch(`${API_BASE}/employment/${app.applicant_id}`).catch(() => ({ ok: false }))
       ]);
 
-      const credentialsData = await credRes.json();
-      const trainingsData = await trainRes.json();
+      const credentialsData = credRes.ok ? await credRes.json() : [];
+      const trainingsData = trainRes.ok ? await trainRes.json() : [];
+      const educationData = eduRes.ok ? await eduRes.json() : [];
+      const linguisticsData = langRes.ok ? await langRes.json() : [];
+      
+      // Assuming employment details includes the employer JOIN
+      const employmentData = empRes.ok ? await empRes.json() : {};
 
       // Update the modal state with the newly fetched data
       setSelectedApplicant(prev => ({
         ...prev,
+        ...employmentData, // Merge employment & employer data into the main object
         credentials: credentialsData || [],
-        trainings: trainingsData || []
+        trainings: trainingsData || [],
+        education: educationData || [],
+        linguistics: linguisticsData || []
       }));
     } catch (err) {
       console.error("Error fetching full profile:", err);
@@ -191,7 +200,7 @@ export default function AdminDashboard() {
     <div className="flex h-screen bg-[#F8F9FA] font-sans text-gray-800">
 
       {/* --- Sidebar --- */}
-      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col z-10">
+      <aside className="w-64 bg-white border-r border-gray-100 flex flex-col z-10 shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-md bg-blue-700 flex items-center justify-center text-white font-bold text-xs">ATS</div>
@@ -280,7 +289,7 @@ export default function AdminDashboard() {
       {/* ========================================= */}
       {selectedApplicant && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-full max-w-3xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-fadeIn">
+          <div className="bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-fadeIn">
 
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
               <h2 className="text-xl font-bold text-gray-800 font-mono">
@@ -291,7 +300,7 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-8">
+            <div className="p-6 overflow-y-auto space-y-10">
               {isBlindMode && (
                 <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm flex items-start gap-3">
                   <svg className="w-5 h-5 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
@@ -302,103 +311,187 @@ export default function AdminDashboard() {
                 </div>
               )}
 
+              {/* 1. Personal Background */}
               <div>
-                <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider border-b border-gray-200 pb-2 mb-4">Personal Details</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm">
-                  <div>
+                <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider border-b border-gray-200 pb-2 mb-4">Personal Background</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-6 text-sm">
+                  <div className="col-span-2">
                     <span className="block text-gray-500 font-medium">Full Name</span>
                     <span className="font-semibold text-gray-900">{isBlindMode ? 'HIDDEN' : selectedApplicant.name}</span>
-                  </div>
-                  <div>
-                    <span className="block text-gray-500 font-medium">Sex</span>
-                    <span className="font-semibold text-gray-900">{isBlindMode ? 'HIDDEN' : selectedApplicant.sex}</span>
-                  </div>
-                  <div>
-                    <span className="block text-gray-500 font-medium">Birthdate</span>
-                    <span className="font-semibold text-gray-900">{isBlindMode ? 'HIDDEN' : selectedApplicant.birthdate?.split('T')[0]}</span>
                   </div>
                   <div className="col-span-2">
                     <span className="block text-gray-500 font-medium">Address</span>
                     <span className="font-semibold text-gray-900">{selectedApplicant.address}</span>
                   </div>
                   <div>
+                    <span className="block text-gray-500 font-medium">Birthdate</span>
+                    <span className="font-semibold text-gray-900">{isBlindMode ? 'HIDDEN' : selectedApplicant.birthdate?.split('T')[0]}</span>
+                  </div>
+                  <div>
+                    <span className="block text-gray-500 font-medium">Place of Birth</span>
+                    <span className="font-semibold text-gray-900">{selectedApplicant.place_birth || 'Not Provided'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-gray-500 font-medium">Sex</span>
+                    <span className="font-semibold text-gray-900">{isBlindMode ? 'HIDDEN' : selectedApplicant.sex}</span>
+                  </div>
+                  <div>
                     <span className="block text-gray-500 font-medium">Civil Status</span>
                     <span className="font-semibold text-gray-900 capitalize">{selectedApplicant.civil_status || 'Not Provided'}</span>
                   </div>
                   <div>
-                    <span className="block text-gray-500 font-medium">Email Address</span>
-                    <span className="font-semibold text-gray-900">{isBlindMode ? 'HIDDEN' : selectedApplicant.email_address || 'Not Provided'}</span>
+                    <span className="block text-gray-500 font-medium">Height</span>
+                    <span className="font-semibold text-gray-900">{selectedApplicant.height ? `${selectedApplicant.height} cm` : 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-gray-500 font-medium">Weight</span>
+                    <span className="font-semibold text-gray-900">{selectedApplicant.weight ? `${selectedApplicant.weight} kg` : 'N/A'}</span>
                   </div>
                   <div>
                     <span className="block text-gray-500 font-medium">Mobile No.</span>
                     <span className="font-semibold text-gray-900">{isBlindMode ? 'HIDDEN' : selectedApplicant.mobile_no}</span>
                   </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider border-b border-gray-200 pb-2 mb-4">Professional Profile</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-6 text-sm">
                   <div>
-                    <span className="block text-gray-500 font-medium">Current/Target Position</span>
-                    <span className="font-semibold text-gray-900">{selectedApplicant.current_position || 'N/A'}</span>
+                    <span className="block text-gray-500 font-medium">Email Address</span>
+                    <span className="font-semibold text-gray-900 truncate">{isBlindMode ? 'HIDDEN' : selectedApplicant.email_address || 'Not Provided'}</span>
                   </div>
-                  <div>
-                    <span className="block text-gray-500 font-medium">Highest Education Level</span>
-                    <span className="font-semibold text-gray-900">{selectedApplicant.highest_education || 'N/A'}</span>
+                  <div className="col-span-4">
+                    <span className="block text-gray-500 font-medium">Overseas Filipino Worker (OFW) Status</span>
+                    <span className="font-semibold text-gray-900 capitalize">{selectedApplicant.if_overseas_filipino || 'No'}</span>
                   </div>
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider border-b border-gray-200 pb-2 mb-4">Credentials & Trainings</h3>
-
-                {isLoadingProfile ? (
-                  <p className="text-gray-500 text-sm animate-pulse">Loading secure database records...</p>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Credentials Rendering */}
-                    {selectedApplicant.credentials?.length > 0 && (
-                      <div>
-                        <span className="block text-gray-500 font-medium text-xs mb-2">Professional Licenses</span>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedApplicant.credentials.map((cred) => (
-                            <span key={cred.credential_id} className="bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1 rounded-md text-xs font-medium">
-                              {cred.credential_title}
+              {isLoadingProfile ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-700"></div>
+                </div>
+              ) : (
+                <>
+                  {/* 2. Education Details */}
+                  <div>
+                    <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider border-b border-gray-200 pb-2 mb-4">Education Details</h3>
+                    {selectedApplicant.education?.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {selectedApplicant.education.map((edu, idx) => (
+                          <div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <span className="block font-semibold text-gray-900 mb-1">
+                              {edu.educ_level.toLowerCase() === 'college' 
+                                ? `College - ${edu.highest_level_comp}` 
+                                : edu.educ_level.toUpperCase()}
                             </span>
-                          ))}
-                        </div>
+                            <span className="block text-sm text-gray-700">{edu.school_name}</span>
+                            <span className="block text-xs text-gray-500 mt-2">Graduated: {edu.year_graduated}</span>
+                          </div>
+                        ))}
                       </div>
-                    )}
-
-                    {/* Trainings Rendering */}
-                    {selectedApplicant.trainings?.length > 0 && (
-                      <div>
-                        <span className="block text-gray-500 font-medium text-xs mb-2">Trainings & Acquired Skills</span>
-                        <div className="grid grid-cols-1 gap-2">
-                          {selectedApplicant.trainings.map((train) => (
-                            <div key={train.training_id} className="bg-gray-50 border border-gray-100 p-3 rounded-md text-sm">
-                              <span className="font-semibold text-gray-800 block">{train.training_cert}</span>
-                              <span className="text-gray-600 block mt-1">Skill: {train.skills}</span>
-                              <span className="text-gray-400 text-xs mt-1 block">Duration: {train.training_period}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {(!selectedApplicant.credentials?.length && !selectedApplicant.trainings?.length) && (
-                      <p className="text-gray-500 text-sm italic">No credentials or trainings provided.</p>
+                    ) : (
+                      <p className="text-gray-500 text-sm italic">No education details provided.</p>
                     )}
                   </div>
-                )}
-              </div>
+
+                  {/* 3. Credentials and Trainings */}
+                  <div>
+                    <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider border-b border-gray-200 pb-2 mb-4">Credentials and Trainings</h3>
+                    
+                    <div className="space-y-6">
+                      {/* Licenses and Credentials */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Licenses and Credentials</h4>
+                        {selectedApplicant.credentials?.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {selectedApplicant.credentials.map((cred) => (
+                              <span key={cred.credential_id} className="bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-md text-xs font-medium">
+                                {cred.credential_title}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-gray-400 text-sm italic">None provided</p>
+                        )}
+                      </div>
+
+                      {/* Trainings and Skills acquired */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Trainings and Skills acquired</h4>
+                        {selectedApplicant.trainings?.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {selectedApplicant.trainings.map((train) => (
+                              <div key={train.training_id} className="bg-white border border-gray-200 p-3 rounded-lg text-sm shadow-sm">
+                                <span className="font-semibold text-gray-800 block">{train.training_cert}</span>
+                                <span className="text-gray-600 block mt-1"><span className="font-medium">Skill:</span> {train.skills}</span>
+                                <span className="text-gray-500 text-xs mt-1 block"><span className="font-medium">Duration:</span> {train.training_period}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-gray-400 text-sm italic">None provided</p>
+                        )}
+                      </div>
+
+                      {/* Languages and dialect */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Languages and dialect</h4>
+                        {selectedApplicant.linguistics?.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {selectedApplicant.linguistics.map((lang, idx) => (
+                              <span key={idx} className="bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-full text-xs font-medium">
+                                {lang.linguistic}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-gray-400 text-sm italic">None provided</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Employment History */}
+                  <div>
+                    <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider border-b border-gray-200 pb-2 mb-4">Employment History</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm mb-6">
+                      <div>
+                        <span className="block text-gray-500 font-medium">Current Employment Status</span>
+                        <span className="font-semibold text-gray-900">{selectedApplicant.employment_status || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="block text-gray-500 font-medium">Current/Target Position</span>
+                        <span className="font-semibold text-gray-900">{selectedApplicant.current_position || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="block text-gray-500 font-medium">Position Last Employer</span>
+                        <span className="font-semibold text-gray-900">{selectedApplicant.position_last_employer || 'N/A'}</span>
+                      </div>
+                    </div>
+
+                    {/* Previous Employer Details */}
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                      <h4 className="text-sm font-bold text-gray-700 mb-3">Previous Employer Details</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="block text-gray-500 font-medium">Employer Name</span>
+                          <span className="font-semibold text-gray-900">{selectedApplicant.employer_name || 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="block text-gray-500 font-medium">Nature of Business</span>
+                          <span className="font-semibold text-gray-900">{selectedApplicant.business_nature || 'N/A'}</span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="block text-gray-500 font-medium">Employer Address</span>
+                          <span className="font-semibold text-gray-900">{selectedApplicant.employer_address || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 shrink-0">
               <button
                 onClick={() => setSelectedApplicant(null)}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-white font-medium transition-colors"
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-white font-medium transition-colors shadow-sm"
               >
                 Close Profile
               </button>
