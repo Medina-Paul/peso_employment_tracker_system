@@ -1,10 +1,12 @@
 import express from 'express';
 import pool from '../config/db.js';
+import { verifyToken } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 
+
 // 1. GET: Fetch all applicants for the summary table
-router.get('/applicants', async (req, res) => {
+router.get('/applicants', verifyToken, async (req, res) => {
   try {
     const query = `
       SELECT 
@@ -23,8 +25,26 @@ router.get('/applicants', async (req, res) => {
   }
 });
 
+//Fetch admin user details
+router.get('/admin', verifyToken, async (req, res) => {
+  try {
+    // authRoutes uses `admin_users` and stores `username` there. Query the same table.
+    const admin = await pool.query(
+      'SELECT admin_id, username FROM admin_users WHERE admin_id = $1',
+      [req.user.admin_id]
+    );
+
+    if (admin.rows.length === 0) return res.status(404).json({ error: 'Admin not found' });
+
+    res.json(admin.rows[0]);
+  } catch (err) {
+    console.error('Error fetching admin user:', err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
 // GET: Fetch full details of a specific applicant by ID
-router.get('/applicants/:id', async (req, res) => {
+router.get('/applicants/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -45,7 +65,7 @@ router.get('/applicants/:id', async (req, res) => {
 });
 
 // 2. PUT: Update an applicant's status (Hire/Reject)
-router.put('/applicants/:id/status', async (req, res) => {
+router.put('/applicants/:id/status', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
