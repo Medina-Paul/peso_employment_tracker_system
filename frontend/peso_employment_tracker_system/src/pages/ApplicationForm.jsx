@@ -17,10 +17,10 @@ const ApplicationForm = () => {
         // Overseas Filipino Table
         if_overseas_filipino: 'no', of_dependent: '', of_location: '', of_status: '',
 
-        // Education Level Table
-        education: [{ educ_level: '', school_name: '', year_graduated: '' }],
+        // Education Level Table (Added highest_level_comp to state)
+        education: [{ educ_level: '', school_name: '', year_graduated: '', highest_level_comp: '' }],
 
-        // ---> NEW: Credentials & Trainings Tables (Split from Skills) <---
+        // Credentials & Trainings Tables
         credentials: [{ credential_title: '' }],
         trainings: [{ training_cert: '', skill_acquired: '', duration: '' }],
 
@@ -76,15 +76,23 @@ const ApplicationForm = () => {
                 })
             });
 
-            // 3. CREATE EDUCATION LEVELS
+            // 3. CREATE EDUCATION LEVELS (Updated to handle college vs lower levels)
             for (const edu of formData.education) {
                 if (edu.educ_level && edu.school_name && edu.year_graduated) {
+                    
+                    // Determine what goes into the DB based on the level selected
+                    const finalHighestLevel = edu.educ_level === 'college' 
+                        ? edu.highest_level_comp 
+                        : edu.educ_level;
+
                     await fetch(`${API_BASE}/education`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            applicant_id: applicantId, educ_level: edu.educ_level,
-                            school_name: edu.school_name, highest_level_comp: edu.educ_level,
+                            applicant_id: applicantId, 
+                            educ_level: edu.educ_level,
+                            school_name: edu.school_name, 
+                            highest_level_comp: finalHighestLevel,
                             year_graduated: parseInt(edu.year_graduated)
                         })
                     });
@@ -125,10 +133,9 @@ const ApplicationForm = () => {
                 })
             });
 
-            // ---> 6. CREATE CREDENTIALS <---
+            // 6. CREATE CREDENTIALS
             for (const cred of formData.credentials) {
                 if (cred.credential_title) {
-                    // Note: You will need to build an Express route for this
                     await fetch(`${API_BASE}/credentials`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -137,10 +144,9 @@ const ApplicationForm = () => {
                 }
             }
 
-            // ---> 7. CREATE TRAININGS <---
+            // 7. CREATE TRAININGS
             for (const training of formData.trainings) {
                 if (training.training_cert || training.skill_acquired) {
-                    // Note: You will need to build an Express route for this
                     await fetch(`${API_BASE}/trainings`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -170,11 +176,12 @@ const ApplicationForm = () => {
 
     const addEducation = () => {
         setFormData(prev => ({
-            ...prev, education: [...prev.education, { educ_level: '', school_name: '', year_graduated: '' }]
+            ...prev, 
+            education: [...prev.education, { educ_level: '', school_name: '', year_graduated: '', highest_level_comp: '' }]
         }));
     };
 
-    // ---> NEW: Dynamic Array Handlers: Credentials <---
+    // --- Dynamic Array Handlers: Credentials ---
     const handleCredentialChange = (index, value) => {
         const newCreds = [...formData.credentials];
         newCreds[index].credential_title = value;
@@ -189,7 +196,7 @@ const ApplicationForm = () => {
         setFormData(prev => ({ ...prev, credentials: prev.credentials.filter((_, index) => index !== indexToRemove) }));
     };
 
-    // ---> NEW: Dynamic Array Handlers: Trainings <---
+    // --- Dynamic Array Handlers: Trainings ---
     const handleTrainingChange = (index, field, value) => {
         const newTrainings = [...formData.trainings];
         newTrainings[index][field] = value;
@@ -259,7 +266,6 @@ const ApplicationForm = () => {
 
     const Step1Personal = () => (
         <div className="space-y-6 animate-fadeIn font-raleway">
-            {/* Same as your original Step 1 */}
             <h2 className="text-2xl font-bold text-blue-900 border-b-2 border-red-600 pb-2 inline-block mb-4">Personal & Background</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex flex-col">
@@ -370,8 +376,7 @@ const ApplicationForm = () => {
     );
 
     const Step2Education = () => (
-        <div className="space-y-6 animate-fadeIn">
-            {/* Same as your original Step 2 */}
+        <div className="space-y-6 animate-fadeIn font-raleway">
             <h2 className="text-2xl font-bold text-blue-900 border-b-2 border-red-600 pb-2 inline-block mb-4">Education Details</h2>
             {formData.education.map((edu, index) => (
                 <div key={index} className="p-4 border border-gray-200 rounded-lg bg-gray-50 relative">
@@ -381,23 +386,44 @@ const ApplicationForm = () => {
                             ✕ Remove
                         </button>
                     )}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Changed to grid-cols-2 to naturally fit 3 or 4 fields depending on selection */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="flex flex-col">
                             <label className="text-sm font-semibold text-gray-700 mb-1">Level *</label>
-                            <select value={edu.educ_level} onChange={(e) => handleEducationChange(index, 'educ_level', e.target.value)} className="border border-gray-300 rounded p-2 bg-white">
+                            <select 
+                                value={edu.educ_level} 
+                                onChange={(e) => handleEducationChange(index, 'educ_level', e.target.value)} 
+                                className="border border-gray-300 rounded p-2 bg-white"
+                            >
                                 <option value="">Select Level</option>
                                 <option value="elementary">Elementary</option>
                                 <option value="high school">High School</option>
                                 <option value="college">College</option>
                             </select>
                         </div>
+                        
+                        {/* Conditionally Render Degree Title if College is selected */}
+                        {edu.educ_level === 'college' && (
+                            <div className="flex flex-col animate-fadeIn">
+                                <label className="text-sm font-semibold text-gray-700 mb-1">Degree Title *</label>
+                                <input 
+                                    type="text" 
+                                    value={edu.highest_level_comp} 
+                                    onChange={(e) => handleEducationChange(index, 'highest_level_comp', e.target.value)} 
+                                    className="border border-gray-300 rounded p-2" 
+                                    placeholder="e.g., BS Information Technology"
+                                    required 
+                                />
+                            </div>
+                        )}
+
                         <div className="flex flex-col">
                             <label className="text-sm font-semibold text-gray-700 mb-1">School Name *</label>
-                            <input type="text" value={edu.school_name} onChange={(e) => handleEducationChange(index, 'school_name', e.target.value)} className="border border-gray-300 rounded p-2" />
+                            <input type="text" value={edu.school_name} onChange={(e) => handleEducationChange(index, 'school_name', e.target.value)} className="border border-gray-300 rounded p-2" required />
                         </div>
                         <div className="flex flex-col">
                             <label className="text-sm font-semibold text-gray-700 mb-1">Year Graduated *</label>
-                            <input type="number" min="1970" value={edu.year_graduated} onChange={(e) => handleEducationChange(index, 'year_graduated', e.target.value)} className="border border-gray-300 rounded p-2" />
+                            <input type="number" min="1970" value={edu.year_graduated} onChange={(e) => handleEducationChange(index, 'year_graduated', e.target.value)} className="border border-gray-300 rounded p-2" required />
                         </div>
                     </div>
                 </div>
@@ -408,12 +434,10 @@ const ApplicationForm = () => {
         </div>
     );
 
-    // ---> NEW: Step 3 completely re-written for Credentials and Trainings <---
     const Step3Qualifications = () => (
         <div className="space-y-6 animate-fadeIn font-raleway">
             <h2 className="text-2xl font-bold text-blue-900 border-b-2 border-red-600 pb-2 inline-block mb-4">Credentials & Trainings</h2>
 
-            {/* Credentials Section */}
             <div className="flex flex-col space-y-4">
                 <label className="font-semibold text-gray-700">Professional Licenses & Credentials</label>
                 {formData.credentials.map((cred, index) => (
@@ -437,7 +461,6 @@ const ApplicationForm = () => {
                 </div>
             </div>
 
-            {/* Trainings Section */}
             <div className="flex flex-col space-y-4 mt-8 pt-6 border-t border-gray-200">
                 <label className="font-semibold text-gray-700">Trainings & Skills Acquired</label>
                 {formData.trainings.map((training, index) => (
@@ -469,7 +492,6 @@ const ApplicationForm = () => {
                 </div>
             </div>
 
-            {/* Languages Section */}
             <div className="flex flex-col space-y-4 mt-8 pt-6 border-t border-gray-200">
                 <label className="font-semibold text-gray-700">Languages & Dialects</label>
                 {formData.languages.length > 0 && (
@@ -511,7 +533,6 @@ const ApplicationForm = () => {
 
     const Step4Employment = () => (
         <div className="space-y-6 animate-fadeIn font-raleway">
-            {/* Same as your original Step 4 */}
             <h2 className="text-2xl font-bold text-blue-900 border-b-2 border-red-600 pb-2 inline-block mb-4">Employment History</h2>
 
             <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -585,7 +606,6 @@ const ApplicationForm = () => {
                                 {currentStep === 4 && Step4Employment()}
                             </div>
 
-                            {/* Form Navigation Controls */}
                             <div className="mt-8 pt-6 border-t border-gray-200 flex justify-between items-center">
                                 {currentStep > 1 ? (
                                     <button type="button" onClick={prevStep} className="px-6 py-2 border border-gray-300 rounded font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
