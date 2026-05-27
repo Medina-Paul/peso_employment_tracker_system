@@ -385,7 +385,7 @@ export default function AdminDashboard() {
                 </h2>
                 <p className="text-[#FF0000] text-md font-semibold mt-1">ID: APP-{selectedApplicant.applicant_id}</p>
               </div>
-              <button onClick={() => setSelectedApplicant(null)} className="text-blue-white text-black hover:text-gray-200 p-2 animateFadeIn">
+              <button onClick={() => setSelectedApplicant(null)} className="text-gray-600 hover:text-gray-900 p-2 animateFadeIn">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
             </div>
@@ -584,7 +584,7 @@ export default function AdminDashboard() {
             <div className="px-8 py-5 border-t border-gray-200 bg-white flex justify-end gap-4 shrink-0">
               <button
                 onClick={() => setSelectedApplicant(null)}
-                className="px-8 py-3 border-2 border-gray-100 text-white rounded-xl bg-blue-800/80 hover:bg-red-600 hover:border-gray-300 font-bold transition-colors shadow-sm"
+                className="w-full sm:w-auto px-8 py-3.5 border-2 border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all"
               >
                 Close Profile
               </button>
