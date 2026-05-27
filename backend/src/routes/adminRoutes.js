@@ -47,7 +47,7 @@ router.get('/admin-user', verifyToken, async (req, res) => {
 router.get('/applicants/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Selects ALL columns from the applicant table (including height, weight, etc.)
     const query = `SELECT * FROM applicant WHERE applicant_id = $1`;
     const result = await pool.query(query, [id]);
@@ -78,6 +78,36 @@ router.put('/applicants/:id/status', verifyToken, async (req, res) => {
     res.json(update.rows[0]);
   } catch (err) {
     console.error("Error updating status:", err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// DELETE: Remove an applicant record (admin only)
+router.delete('/applicants/:id/delete', async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Start a transaction to ensure all or nothing is deleted
+    await pool.query('BEGIN');
+
+    // 1. Delete dependent records first
+    await pool.query('DELETE FROM education_level WHERE applicant_id = $1', [id]);
+    await pool.query('DELETE FROM credentials WHERE applicant_id = $1', [id]);
+    await pool.query('DELETE FROM trainings WHERE applicant_id = $1', [id]);
+    await pool.query('DELETE FROM linguistics WHERE applicant_id = $1', [id]);
+    await pool.query('DELETE FROM employment WHERE applicant_id = $1', [id]);
+    await pool.query('DELETE FROM overseas_filipino WHERE applicant_id = $1', [id]);
+
+    // 2. Finally, delete the applicant
+    const result = await pool.query('DELETE FROM applicant WHERE applicant_id = $1', [id]);
+
+    await pool.query('COMMIT');
+
+    if (result.rowCount === 0) return res.status(404).json({ error: "Applicant not found" });
+
+    res.json({ message: "Applicant and related data deleted successfully" });
+  } catch (err) {
+    await pool.query('ROLLBACK'); // Undo if any step fails
+    console.error("Delete Error:", err.message);
     res.status(500).send('Server Error');
   }
 });

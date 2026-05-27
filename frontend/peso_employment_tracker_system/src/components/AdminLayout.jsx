@@ -22,10 +22,10 @@ export default function AdminLayout() {
             <img className="w-full h-full object-contain" src={peso_logo} alt="PESO Logo" />
           </div>
           <div className="flex flex-col justify-center">
-            <span className="text-[0.65rem] md:text-sm font-semibold text-gray-800 uppercase tracking-widest leading-none">
+            <span className="text-[0.7rem] md:text-[1rem] font-semibold text-gray-800 uppercase tracking-widest leading-none">
               Philippine Employment
             </span>
-            <span className="text-[0.9rem] md:text-xl font-bold text-red-900 uppercase tracking-widest leading-tight">
+            <span className="text-[1.2rem] md:text-[1.7rem] font-bold text-red-900 uppercase tracking-widest leading-tight">
               Admin Portal
             </span>
           </div>

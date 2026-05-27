@@ -10,6 +10,7 @@ export default function AdminDashboard() {
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: null, applicant: null });
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, applicant: null });
 
   // --- 1. FETCH DATA ON LOAD ---
   useEffect(() => {
@@ -76,6 +77,33 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error("Failed to update status in database:", err);
       alert("Error updating status. Is the backend running?");
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    const { applicant } = deleteModal;
+    try {
+      const token = localStorage.getItem('adminToken');
+      const res = await fetch(`${API_BASE}/admin/applicants/${applicant.applicant_id}/delete`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error('Failed to delete applicant:', res.status, text);
+        alert('Failed to delete record. Check console for details.');
+        setDeleteModal({ isOpen: false, applicant: null });
+        return;
+      }
+
+      // Remove from UI
+      setApplicants(prev => prev.filter(a => a.applicant_id !== applicant.applicant_id));
+      setDeleteModal({ isOpen: false, applicant: null });
+    } catch (err) {
+      console.error('Error deleting applicant:', err);
+      alert('Error deleting record. Is the backend running?');
+      setDeleteModal({ isOpen: false, applicant: null });
     }
   };
 
@@ -220,6 +248,17 @@ export default function AdminDashboard() {
                         </button>
                       </>
                     )}
+
+                    { (activeTab === 'hired' || activeTab === 'rejected') && (
+                      <>
+                        <button
+                          onClick={() => setDeleteModal({ isOpen: true, applicant: app })}
+                          className="px-4 py-2 bg-red-50 text-red-700 border border-red-200 hover:bg-red-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                        >
+                          Delete Record
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -309,14 +348,14 @@ export default function AdminDashboard() {
           {activeTab === 'hired' && (
             <div className="animate-fadeIn max-w-[1400px]">
               <p className="text-gray-600 font-medium mb-8 text-lg">Record of all officially hired candidates.</p>
-              {renderTable(applicants.filter(a => a.status === 'Hired'), false)}
+              {renderTable(applicants.filter(a => a.status === 'Hired'), true)}
             </div>
           )}
 
           {activeTab === 'rejected' && (
             <div className="animate-fadeIn max-w-[1400px]">
               <p className="text-gray-600 font-medium mb-8 text-lg">Record of applicants who did not meet qualifications.</p>
-              {renderTable(applicants.filter(a => a.status === 'Rejected'), false)}
+              {renderTable(applicants.filter(a => a.status === 'Rejected'), true)}
             </div>
           )}
         </div>
@@ -327,18 +366,18 @@ export default function AdminDashboard() {
       {/* ========================================= */}
       {selectedApplicant && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 lg:p-8">
-          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] animate-fadeIn">
+          <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] overscroll-none">
 
             {/* Modal Header */}
-            <div className="px-8 py-5 border-b-4 border-red-800 bg-blue-900 flex justify-between items-center shrink-0">
+            <div className="px-8 py-5 border-b-4 border-red-800 bg-blue-800/70 flex justify-between items-center shrink-0">
               <div>
                 <h2 className="text-xl font-extrabold text-white tracking-wide">
-                  Candidate Profile
+                  Applicant Profile
                 </h2>
-                <p className="text-blue-200 text-xs font-mono mt-1 font-semibold">ID: APP-{selectedApplicant.applicant_id}</p>
+                <p className="text-[#FF0000] text-md font-semibold mt-1">ID: APP-{selectedApplicant.applicant_id}</p>
               </div>
-              <button onClick={() => setSelectedApplicant(null)} className="text-blue-200 hover:text-white bg-blue-800/50 hover:bg-red-600 p-2 rounded-lg transition-colors">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+              <button onClick={() => setSelectedApplicant(null)} className="text-blue-white text-white hover:text-gray-200 p-2 animateFadeIn">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
             </div>
 
@@ -536,7 +575,7 @@ export default function AdminDashboard() {
             <div className="px-8 py-5 border-t border-gray-200 bg-gray-50 flex justify-end gap-4 shrink-0">
               <button
                 onClick={() => setSelectedApplicant(null)}
-                className="px-8 py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-white hover:border-gray-300 font-bold transition-all shadow-sm"
+                className="px-8 py-3 border-2 border-gray-100 text-gray-200 rounded-xl bg-blue-800/80 hover:bg-red-600 hover:border-gray-300 font-bold transition-colors shadow-sm"
               >
                 Close Profile
               </button>
@@ -545,9 +584,9 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ========================================= */}
-      {/* OVERLAY 2: HIRE/REJECT CONFIRMATION MODAL */}
-      {/* ========================================= */}
+        {/* ========================================= */}
+        {/* OVERLAY 2: HIRE/REJECT CONFIRMATION MODAL */}
+        {/* ========================================= */}
       {confirmModal.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fadeIn">
           <div className="bg-white max-w-md w-full rounded-2xl shadow-2xl p-8 text-center border border-gray-100">
@@ -581,6 +620,42 @@ export default function AdminDashboard() {
                 className={`flex-1 px-4 py-3 text-white rounded-xl font-bold transition-all shadow-md transform hover:-translate-y-0.5 ${confirmModal.type === 'hire' ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-red-600 hover:bg-red-700 shadow-red-200'}`}
               >
                 Yes, {confirmModal.type}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================= */}
+      {/* OVERLAY 3: DELETE CONFIRMATION MODAL */}
+      {/* ========================================= */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[65] p-4 animate-fadeIn">
+          <div className="bg-white max-w-md w-full rounded-2xl shadow-2xl p-8 text-center border border-gray-100">
+
+            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full mb-6 bg-red-100 text-red-600">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </div>
+
+            <h3 className="text-2xl font-extrabold text-gray-900 mb-3">Confirm Delete</h3>
+
+            <p className="text-base text-gray-500 mb-8 font-medium leading-relaxed">
+              Are you sure you want to permanently delete applicant <span className="font-mono text-gray-800 font-bold">APP-{deleteModal.applicant?.applicant_id}</span>? This action cannot be undone.
+            </p>
+
+            <div className="flex gap-4 w-full">
+              <button
+                onClick={() => setDeleteModal({ isOpen: false, applicant: null })}
+                className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-bold transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className={`flex-1 px-4 py-3 text-white rounded-xl font-bold transition-all shadow-md bg-red-600 hover:bg-red-700`}
+              >
+                Yes, Delete
               </button>
             </div>
 
