@@ -1,6 +1,7 @@
 import express from 'express';
 import pool from '../config/db.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
+import { sendStatusEmail } from '../utils/emailService.js';
 const router = express.Router();
 
 
@@ -75,7 +76,16 @@ router.put('/applicants/:id/status', verifyToken, async (req, res) => {
       [status, id]
     );
 
-    res.json(update.rows[0]);
+    const appRes = await pool.query('SELECT email_address FROM applicant WHERE applicant_id = $1', [id]);
+    const email = appRes.rows[0]?.email_address;
+
+    if (email) {
+      // Pass the real email here; the service will override the 'to' field if DEMO_EMAIL is set
+      await sendStatusEmail(email, status);
+      console.log(`Notification email logic triggered for ${email}`);
+    }
+
+    res.json({ message: "Status updated and email handled" });
   } catch (err) {
     console.error("Error updating status:", err.message);
     res.status(500).send('Server Error');

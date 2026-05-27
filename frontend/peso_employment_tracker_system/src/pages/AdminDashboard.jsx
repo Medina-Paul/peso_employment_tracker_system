@@ -49,34 +49,43 @@ export default function AdminDashboard() {
   const totalRejected = applicants.filter(a => a.status === 'Rejected').length;
 
   // --- 2. ACTIONS TO EXPRESS BACKEND ---
-  const triggerEmailNotification = (applicant, newStatus) => {
-    console.log(`[DEMO SYSTEM] Simulating ${newStatus.toUpperCase()} email sent to DEMO EMAIL regarding applicant APP-${applicant.applicant_id}`);
-  };
-
   const handleStatusConfirm = async () => {
     const { type, applicant } = confirmModal;
     const newStatus = type === 'hire' ? 'Hired' : 'Rejected';
 
     try {
       const token = localStorage.getItem('adminToken');
-      await fetch(`${API_BASE}/admin/applicants/${applicant.applicant_id}/status`, {
+
+      // 1. Send the request
+      const response = await fetch(`${API_BASE}/admin/applicants/${applicant.applicant_id}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}` // Ensure this token is not null
         },
         body: JSON.stringify({ status: newStatus })
       });
 
+      // 2. IMPORTANT: Check if the response was successful
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Unauthorized: Your session may have expired. Please log in again.");
+        }
+        throw new Error(`Server responded with ${response.status}`);
+      }
+
+      // 3. Update the UI only after successful response
       setApplicants(applicants.map(app =>
         app.applicant_id === applicant.applicant_id ? { ...app, status: newStatus } : app
       ));
 
-      triggerEmailNotification(applicant, newStatus);
+      // 4. Trigger notification logic
       setConfirmModal({ isOpen: false, type: null, applicant: null });
+
+
     } catch (err) {
-      console.error("Failed to update status in database:", err);
-      alert("Error updating status. Is the backend running?");
+      console.error("Failed to update status:", err);
+
     }
   };
 
@@ -249,7 +258,7 @@ export default function AdminDashboard() {
                       </>
                     )}
 
-                    { (activeTab === 'hired' || activeTab === 'rejected') && (
+                    {(activeTab === 'hired' || activeTab === 'rejected') && (
                       <>
                         <button
                           onClick={() => setDeleteModal({ isOpen: true, applicant: app })}
@@ -584,9 +593,9 @@ export default function AdminDashboard() {
         </div>
       )}
 
-        {/* ========================================= */}
-        {/* OVERLAY 2: HIRE/REJECT CONFIRMATION MODAL */}
-        {/* ========================================= */}
+      {/* ========================================= */}
+      {/* OVERLAY 2: HIRE/REJECT CONFIRMATION MODAL */}
+      {/* ========================================= */}
       {confirmModal.isOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-fadeIn">
           <div className="bg-white max-w-md w-full rounded-2xl shadow-2xl p-8 text-center border border-gray-100">
