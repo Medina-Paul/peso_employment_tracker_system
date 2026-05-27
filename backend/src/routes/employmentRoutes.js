@@ -44,7 +44,7 @@ router.get('/:applicantId', async (req, res) => {
   try {
     const { applicantId } = req.params;
     const query = `
-      SELECT emp.*, e.employer_name, e.employer_address
+      SELECT emp.*, e.employer_name, e.employer_address, e.business_nature
       FROM employment emp
       JOIN employer e ON emp.employer_id = e.employer_id
       WHERE emp.applicant_id = $1

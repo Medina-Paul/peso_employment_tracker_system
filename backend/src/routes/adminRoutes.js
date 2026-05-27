@@ -23,6 +23,27 @@ router.get('/applicants', async (req, res) => {
   }
 });
 
+// GET: Fetch full details of a specific applicant by ID
+router.get('/applicants/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Selects ALL columns from the applicant table (including height, weight, etc.)
+    const query = `SELECT * FROM applicant WHERE applicant_id = $1`;
+    const result = await pool.query(query, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Applicant not found" });
+    }
+
+    // Sends the full row back to the React frontend
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error fetching single applicant profile:", err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
 // 2. PUT: Update an applicant's status (Hire/Reject)
 router.put('/applicants/:id/status', async (req, res) => {
   try {

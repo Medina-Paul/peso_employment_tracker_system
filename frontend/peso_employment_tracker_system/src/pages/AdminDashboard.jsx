@@ -67,45 +67,45 @@ export default function AdminDashboard() {
   };
 
   // --- 3. VIEW FULL PROFILE FETCH ---
-  const handleViewDetails = async (app) => {
-    setIsLoadingProfile(true);
-    setSelectedApplicant(app);
+const handleViewDetails = async (app) => {
+  setIsLoadingProfile(true);
+  setSelectedApplicant(app);
 
-    try {
-      // Fetch ALL deep data concurrently from your normalized tables
-      // Ensure these endpoints exist in your Express backend!
-      const [credRes, trainRes, eduRes, langRes, empRes] = await Promise.all([
-        fetch(`${API_BASE}/credentials/${app.applicant_id}`).catch(() => ({ ok: false })),
-        fetch(`${API_BASE}/trainings/${app.applicant_id}`).catch(() => ({ ok: false })),
-        fetch(`${API_BASE}/education/${app.applicant_id}`).catch(() => ({ ok: false })),
-        fetch(`${API_BASE}/linguistics/${app.applicant_id}`).catch(() => ({ ok: false })),
-        fetch(`${API_BASE}/employment/${app.applicant_id}`).catch(() => ({ ok: false }))
-      ]);
+  try {
+    const [applicantRes, credRes, trainRes, eduRes, langRes, empRes] = await Promise.all([
+      fetch(`${API_BASE}/admin/applicants/${app.applicant_id}`).catch(() => ({ ok: false })),
+      fetch(`${API_BASE}/credentials/${app.applicant_id}`).catch(() => ({ ok: false })),
+      fetch(`${API_BASE}/trainings/${app.applicant_id}`).catch(() => ({ ok: false })),
+      fetch(`${API_BASE}/education/${app.applicant_id}`).catch(() => ({ ok: false })),
+      fetch(`${API_BASE}/linguistics/${app.applicant_id}`).catch(() => ({ ok: false })),
+      fetch(`${API_BASE}/employment/${app.applicant_id}`).catch(() => ({ ok: false }))
+    ]);
 
-      const credentialsData = credRes.ok ? await credRes.json() : [];
-      const trainingsData = trainRes.ok ? await trainRes.json() : [];
-      const educationData = eduRes.ok ? await eduRes.json() : [];
-      const linguisticsData = langRes.ok ? await langRes.json() : [];
-      
-      // Assuming employment details includes the employer JOIN
-      const employmentData = empRes.ok ? await empRes.json() : {};
+    const fullApplicantData = applicantRes.ok ? await applicantRes.json() : app;
+    const credentialsData = credRes.ok ? await credRes.json() : [];
+    const trainingsData = trainRes.ok ? await trainRes.json() : [];
+    const educationData = eduRes.ok ? await eduRes.json() : [];
+    const linguisticsData = langRes.ok ? await langRes.json() : [];
+    
+    // BACKEND RETURNS ARRAY: Extract the first record safely
+    const employmentArray = empRes.ok ? await empRes.json() : [];
+    const employmentData = employmentArray.length > 0 ? employmentArray[0] : {};
 
-      // Update the modal state with the newly fetched data
-      setSelectedApplicant(prev => ({
-        ...prev,
-        ...employmentData, // Merge employment & employer data into the main object
-        credentials: credentialsData || [],
-        trainings: trainingsData || [],
-        education: educationData || [],
-        linguistics: linguisticsData || []
-      }));
-    } catch (err) {
-      console.error("Error fetching full profile:", err);
-    } finally {
-      setIsLoadingProfile(false);
-    }
-  };
-
+    setSelectedApplicant(prev => ({
+      ...prev,
+      ...fullApplicantData,
+      ...employmentData, // Now this is a single flat object, not an array!
+      credentials: credentialsData,
+      trainings: trainingsData,
+      education: educationData,
+      linguistics: linguisticsData
+    }));
+  } catch (err) {
+    console.error("Error fetching full profile:", err);
+  } finally {
+    setIsLoadingProfile(false);
+  }
+};
   // --- UI Helpers ---
   const getStatusBadge = (status) => {
     const styles = {
