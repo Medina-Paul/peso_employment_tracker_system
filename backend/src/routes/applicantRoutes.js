@@ -23,7 +23,7 @@ router.post('/', async (req, res) => {
     // 1. CHECK IF EMAIL ALREADY EXISTS
     if (email_address) {
       const emailCheck = await pool.query(
-        'SELECT * FROM applicants WHERE email_address = $1',
+        'SELECT * FROM applicant WHERE email_address = $1',
         [email_address]
       );
 
@@ -35,7 +35,7 @@ router.post('/', async (req, res) => {
 
     // 2. IF EMAIL IS UNIQUE, INSERT APPLICANT
     const newApplicant = await pool.query(
-      `INSERT INTO applicants 
+      `INSERT INTO applicant 
         (name, address, birthdate, place_birth, sex, height, weight, civil_status, landline_no, mobile_no, email_address)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
