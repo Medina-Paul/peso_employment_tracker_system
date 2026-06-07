@@ -456,7 +456,7 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <span className="block text-gray-500 font-bold mb-1">Email Address</span>
-                    <span className="font-extrabold text-gray-900 text-base truncate block">{isBlindMode ? 'HIDDEN' : selectedApplicant.email_address || 'Not Provided'}</span>
+                    <span className="font-extrabold text-gray-900 text-base break-words block">{isBlindMode ? 'HIDDEN' : selectedApplicant.email_address || 'Not Provided'}</span>
                   </div>
 
                   {/* Overseas Filipino Worker (OFW) Status */}
@@ -559,7 +559,7 @@ export default function AdminDashboard() {
                               <div key={train.training_id} className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm">
                                 <span className="font-extrabold text-gray-900 text-base block mb-2">{train.training_cert}</span>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
-                                  <div><span className="font-bold text-gray-500 block text-xs">Skill:</span> <span className="font-semibold text-gray-800">{train.skills}</span></div>
+                                  <div><span className="font-bold text-gray-500 block text-xs">Skill:</span> <span className="font-semibold text-gray-800">{train.skill_name || train.skills || 'N/A'}</span></div>
                                   <div><span className="font-bold text-gray-500 block text-xs">Duration:</span> <span className="font-semibold text-gray-800">{train.training_period}</span></div>
                                 </div>
                               </div>
