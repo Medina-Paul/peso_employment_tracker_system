@@ -32,7 +32,6 @@ export default function AdminLayout() {
               <span>ADMIN DASHBOARD</span>
             </div>
           </div>
-
         </div>
 
         {/* Admin Controls */}

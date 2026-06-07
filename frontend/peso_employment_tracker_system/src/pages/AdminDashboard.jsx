@@ -40,6 +40,7 @@ export default function AdminDashboard() {
       console.error("Failed to fetch dashboard data:", err);
     }
   };
+
   // --- Admin User ---
   const [adminUsername, setAdminUsername] = useState(null);
 
@@ -61,7 +62,7 @@ export default function AdminDashboard() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // Ensure this token is not null
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ status: newStatus })
       });
@@ -82,10 +83,8 @@ export default function AdminDashboard() {
       // 4. Trigger notification logic
       setConfirmModal({ isOpen: false, type: null, applicant: null });
 
-
     } catch (err) {
       console.error("Failed to update status:", err);
-
     }
   };
 
@@ -134,9 +133,8 @@ export default function AdminDashboard() {
 
     } catch (error) {
       console.error("Error fetching admin user", error);
-
     }
-  }
+  };
 
   // --- 3. VIEW FULL PROFILE FETCH ---
   const handleViewDetails = async (app) => {
@@ -147,13 +145,15 @@ export default function AdminDashboard() {
       const token = localStorage.getItem('adminToken');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [applicantRes, credRes, trainRes, eduRes, langRes, empRes] = await Promise.all([
+      // Added the overseas fetch into the Promise.all array
+      const [applicantRes, credRes, trainRes, eduRes, langRes, empRes, overseasRes] = await Promise.all([
         fetch(`${API_BASE}/admin/applicants/${app.applicant_id}`, { headers }).catch(() => ({ ok: false })),
         fetch(`${API_BASE}/credentials/${app.applicant_id}`, { headers }).catch(() => ({ ok: false })),
         fetch(`${API_BASE}/trainings/${app.applicant_id}`, { headers }).catch(() => ({ ok: false })),
         fetch(`${API_BASE}/education/${app.applicant_id}`, { headers }).catch(() => ({ ok: false })),
         fetch(`${API_BASE}/linguistics/${app.applicant_id}`, { headers }).catch(() => ({ ok: false })),
         fetch(`${API_BASE}/employment/${app.applicant_id}`, { headers }).catch(() => ({ ok: false })),
+        fetch(`${API_BASE}/overseas/${app.applicant_id}`, { headers }).catch(() => ({ ok: false })),
       ]);
 
       const fullApplicantData = applicantRes.ok ? await applicantRes.json() : app;
@@ -165,6 +165,17 @@ export default function AdminDashboard() {
       const employmentArray = empRes.ok ? await empRes.json() : [];
       const employmentData = employmentArray.length > 0 ? employmentArray[0] : {};
 
+      // Parse Overseas Data
+      const overseasArray = overseasRes.ok ? await overseasRes.json() : [];
+      const baseOverseas = overseasArray.length > 0 ? overseasArray[0] : { if_overseas_filipino: 'no' };
+
+      const overseasParsedData = {
+        if_overseas_filipino: baseOverseas.if_overseas_filipino || 'no',
+        of_status: baseOverseas.of_status || null,
+        of_location: baseOverseas.of_location || null,
+        // Extract array of dependents from the rows returned
+        dependents: overseasArray.filter(row => row.of_dependent).map(row => row.of_dependent)
+      };
 
       setSelectedApplicant(prev => ({
         ...prev,
@@ -173,7 +184,8 @@ export default function AdminDashboard() {
         credentials: credentialsData,
         trainings: trainingsData,
         education: educationData,
-        linguistics: linguisticsData
+        linguistics: linguisticsData,
+        overseas_filipinos: overseasParsedData // Inject formatted OFW data
       }));
     } catch (err) {
       console.error("Error fetching full profile:", err);
@@ -446,10 +458,46 @@ export default function AdminDashboard() {
                     <span className="block text-gray-500 font-bold mb-1">Email Address</span>
                     <span className="font-extrabold text-gray-900 text-base truncate block">{isBlindMode ? 'HIDDEN' : selectedApplicant.email_address || 'Not Provided'}</span>
                   </div>
+
+                  {/* Overseas Filipino Worker (OFW) Status */}
                   <div className="col-span-1 lg:col-span-4 pt-4 border-t border-gray-200 mt-2">
                     <span className="block text-gray-500 font-bold mb-1">Overseas Filipino Worker (OFW) Status</span>
-                    <span className="font-extrabold text-blue-700 text-base capitalize bg-blue-50 px-3 py-1 rounded-md inline-block">{selectedApplicant.if_overseas_filipino || 'No'}</span>
+                    <span className="font-extrabold text-blue-700 text-base capitalize bg-blue-50 px-3 py-1 rounded-md inline-block">
+                      {selectedApplicant.overseas_filipinos?.if_overseas_filipino || 'No'}
+                    </span>
                   </div>
+
+                  {/* Conditional section: If the applicant is an OFW, show their details and dependents list */}
+                  {(selectedApplicant.overseas_filipinos?.if_overseas_filipino?.toLowerCase() === 'yes') && (
+                    <div className="col-span-1 lg:col-span-4 bg-blue-50 border border-blue-100 rounded-xl p-5 mt-2">
+                      <h4 className="text-sm font-extrabold text-blue-900 mb-4">OFW Details & Dependents</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div>
+                          <span className="block text-blue-700 font-bold mb-1 text-xs">Current OFW Status</span>
+                          <span className="font-extrabold text-gray-900 text-sm capitalize">
+                            {selectedApplicant.overseas_filipinos?.of_status || 'Not Provided'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-blue-700 font-bold mb-1 text-xs">Location</span>
+                          <span className="font-extrabold text-gray-900 text-sm capitalize">
+                            {selectedApplicant.overseas_filipinos?.of_location || 'Not Provided'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <h5 className="text-xs font-extrabold text-blue-800 mb-2">Declared Dependents</h5>
+                      {selectedApplicant.overseas_filipinos?.dependents?.length > 0 ? (
+                        <ul className="list-disc list-inside text-sm font-bold text-gray-800 ml-2">
+                          {selectedApplicant.overseas_filipinos.dependents.map((dep, idx) => (
+                            <li key={idx} className="capitalize">{dep}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-sm text-gray-600 font-medium italic">No dependents declared.</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

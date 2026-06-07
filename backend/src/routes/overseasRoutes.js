@@ -18,35 +18,38 @@ router.get('/:applicantId', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const {
-      applicant_id, if_overseas_filipino, of_dependent,
-      of_location, of_status
-    } = req.body;
+    const { applicant_id, if_overseas_filipino, of_status, of_location, dependents } = req.body;
 
-    // Helper for strict CHECK constraints
-    const cleanLower = (val) => {
-        if (val === "" || val === undefined || val === null) return null;
-        return String(val).toLowerCase();
-    };
+    if (if_overseas_filipino !== 'yes' || !dependents || dependents.length === 0) {
+      return res.status(400).json({ error: 'No dependent data provided' });
+    }
 
-    const newOverseas = await pool.query(
-      `INSERT INTO overseas_filipino
-        (applicant_id, if_overseas_filipino, of_dependent, of_location, of_status)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [
-        applicant_id, 
-        cleanLower(if_overseas_filipino), 
-        cleanLower(of_dependent), 
-        cleanLower(of_location), 
-        cleanLower(of_status)
-      ]
-    );
+    // Loop through the dependents array and create an insert query for EACH ONE
+    const insertPromises = dependents.map(dep => {
+      return pool.query(
+        `INSERT INTO overseas_filipino
+          (applicant_id, if_overseas_filipino, of_dependent, of_location, of_status)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [
+          applicant_id,
+          if_overseas_filipino,
+          dep.of_dependent, // Extracted from the array
+          of_location,      // Top-level value
+          of_status         // Top-level value
+        ]
+      );
+    });
+
+    // Execute all queries in parallel
+    const results = await Promise.all(insertPromises);
     
-    res.json(newOverseas.rows[0]);
+    // Return the inserted rows back to frontend
+    res.json(results.map(result => result.rows[0]));
+    
   } catch (err) {
     console.error("Overseas Insert Error:", err.message);
-    res.status(500).send('Database Error: Check your constraint exact wording.');
+    res.status(500).json({ error: 'Database Error' });
   }
 });
 

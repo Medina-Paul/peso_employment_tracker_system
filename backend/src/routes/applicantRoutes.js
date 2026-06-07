@@ -16,38 +16,36 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const {
-      name, address, birthdate, place_birth, sex, 
-      height, weight, religion, civil_status, 
-      landline_no, mobile_no, email_address
+      name, address, birthdate, place_birth, sex, height, weight,
+      civil_status, landline_no, mobile_no, email_address
     } = req.body;
 
-    // Helper 1: For numbers and text that don't need lowercasing
-    const cleanNull = (val) => (val === "" || val === undefined ? null : val);
-    
-    // Helper 2: For strict CHECK constraints (Forces lowercase)
-    const cleanLower = (val) => {
-        if (val === "" || val === undefined || val === null) return null;
-        return String(val).toLowerCase();
-    };
+    // 1. CHECK IF EMAIL ALREADY EXISTS
+    if (email_address) {
+      const emailCheck = await pool.query(
+        'SELECT * FROM applicants WHERE email_address = $1',
+        [email_address]
+      );
 
+      if (emailCheck.rows.length > 0) {
+        // Return a 400 status with a specific error message
+        return res.status(400).json({ error: 'An application with this email address already exists.' });
+      }
+    }
+
+    // 2. IF EMAIL IS UNIQUE, INSERT APPLICANT
     const newApplicant = await pool.query(
-      `INSERT INTO applicant 
-        (name, address, birthdate, place_birth, sex, height, weight, religion, civil_status, landline_no, mobile_no, email_address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO applicants 
+        (name, address, birthdate, place_birth, sex, height, weight, civil_status, landline_no, mobile_no, email_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [
-        name, address, birthdate, place_birth, 
-        sex, // Sex is 'M', 'F', 'O' in your DB, so we leave it alone!
-        cleanNull(height), cleanNull(weight), cleanNull(religion), 
-        cleanLower(civil_status), // Forced to lowercase!
-        cleanNull(landline_no), mobile_no, cleanNull(email_address)
-      ]
+      [name, address, birthdate, place_birth, sex, height, weight, civil_status, landline_no, mobile_no, email_address]
     );
 
     res.json(newApplicant.rows[0]);
   } catch (err) {
-    console.error("Applicant Insert Error:", err.message);
-    res.status(500).send('Server Error');
+    console.error(err.message);
+    res.status(500).json({ error: 'Server Error' });
   }
 });
 

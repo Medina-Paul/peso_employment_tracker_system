@@ -6,17 +6,33 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const ApplicationForm = () => {
     const [currentStep, setCurrentStep] = useState(1);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Form State mapped to your SQL schema
     const [formData, setFormData] = useState({
-        name: '', address: '', birthdate: '', place_birth: '', sex: '',
-        height: '', weight: '', religion: '', civil_status: '',
-        landline_no: '', mobile_no: '', email_address: '',
-        if_overseas_filipino: 'no', of_dependent: '', of_location: '', of_status: '',
+        name: '',
+        address: '',
+        birthdate: '',
+        place_birth: '',
+        sex: '',
+        height: '',
+        weight: '',
+        civil_status: '',
+        landline_no: '',
+        mobile_no: '',
+        email_address: '',
+
+        if_overseas_filipino: 'no',
+        of_status: '', // Top-level state
+        of_location: '', // Top-level state
+        dependents: [{ of_dependent: '' }], // Now only stores the dependent relation
+
         education: [{ educ_level: '', school_name: '', year_graduated: '', highest_level_comp: '' }],
         credentials: [{ credential_title: '' }],
+        skills_acquired: [{ skill_acquired: '' }],
         trainings: [{ training_cert: '', skill_acquired: '', duration: '' }],
         languages: [], currentLanguageSelect: '', currentDialectInput: '',
+
         employment_status: '', position_last_employer: '', current_position: '',
         employer_name: '', employer_address: '', business_nature: ''
     });
@@ -26,128 +42,160 @@ const ApplicationForm = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    // Handlers for dynamic dependent arrays
+    const handleDependentChange = (index, field, value) => {
+        const updatedDependents = [...formData.dependents];
+        updatedDependents[index][field] = value;
+        setFormData({ ...formData, dependents: updatedDependents });
+    };
+
+    const addDependent = () => {
+        setFormData({
+            ...formData,
+            dependents: [...formData.dependents, { of_dependent: '' }]
+        });
+    };
+
+    const removeDependent = (index) => {
+        const updatedDependents = formData.dependents.filter((_, i) => i !== index);
+        setFormData({ ...formData, dependents: updatedDependents });
+    };
+
     const nextStep = () => setCurrentStep(prev => prev + 1);
     const prevStep = () => setCurrentStep(prev => prev - 1);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
+
+        setIsSubmitting(true);
+
         try {
             // 1. CREATE APPLICANT
             const applicantRes = await fetch(`${API_BASE}/applicants`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name: formData.name, address: formData.address, birthdate: formData.birthdate,
-                    place_birth: formData.place_birth, sex: formData.sex,
+                    name: formData.name, address: formData.address,
+                    birthdate: formData.birthdate, place_birth: formData.place_birth,
+                    sex: formData.sex,
                     height: formData.height ? parseInt(formData.height) : null,
                     weight: formData.weight ? parseInt(formData.weight) : null,
-                    religion: formData.religion || null, civil_status: formData.civil_status || null,
-                    landline_no: formData.landline_no || null, mobile_no: formData.mobile_no,
+                    civil_status: formData.civil_status || null,
+                    landline_no: formData.landline_no || null,
+                    mobile_no: formData.mobile_no,
                     email_address: formData.email_address || null
                 })
             });
 
-            if (!applicantRes.ok) throw new Error(`Applicant failed: ${await applicantRes.text()}`);
+            if (!applicantRes.ok) throw new Error("Applicant creation failed");
             const newApplicant = await applicantRes.json();
             const applicantId = newApplicant.applicant_id;
 
             // 2. CREATE OVERSEAS STATUS
-            const overseasRes = await fetch(`${API_BASE}/overseas`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    applicant_id: applicantId, if_overseas_filipino: formData.if_overseas_filipino,
-                    of_dependent: formData.of_dependent || null, of_location: formData.of_location || null,
-                    of_status: formData.of_status || null
-                })
-            });
-            if (!overseasRes.ok) throw new Error(`Overseas failed: ${await overseasRes.text()}`);
+            if (formData.if_overseas_filipino === 'yes') {
+                // send the OFW flag and only non-empty dependents
+                const dependentsToSend = (formData.dependents || []).filter(d => d.of_dependent && d.of_dependent.trim() !== '');
+                await fetch(`${API_BASE}/overseas`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        applicant_id: applicantId,
+                        if_overseas_filipino: formData.if_overseas_filipino,
+                        of_status: formData.of_status,
+                        of_location: formData.of_location,
+                        dependents: dependentsToSend
+                    })
+                });
+            }
 
             // 3. CREATE EDUCATION
             for (const edu of formData.education) {
-                if (edu.educ_level && edu.school_name && edu.year_graduated) {
-                    const finalHighestLevel = edu.educ_level === 'college' ? edu.highest_level_comp : edu.educ_level;
-                    const eduRes = await fetch(`${API_BASE}/education`, {
+                if (edu.educ_level && edu.school_name) {
+                    await fetch(`${API_BASE}/education`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            applicant_id: applicantId, educ_level: edu.educ_level,
-                            school_name: edu.school_name, highest_level_comp: finalHighestLevel,
+                            applicant_id: applicantId,
+                            educ_level: edu.educ_level,
+                            school_name: edu.school_name,
+                            highest_level_comp: edu.educ_level === 'college' ? edu.highest_level_comp : edu.educ_level,
                             year_graduated: parseInt(edu.year_graduated)
                         })
                     });
-                    if (!eduRes.ok) throw new Error(`Education failed: ${await eduRes.text()}`);
                 }
             }
 
             // 4. CREATE LINGUISTICS
             for (const language of formData.languages) {
-                const langRes = await fetch(`${API_BASE}/linguistics`, {
+                await fetch(`${API_BASE}/linguistics`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ applicant_id: applicantId, linguistic: language })
                 });
-                if (!langRes.ok) throw new Error(`Linguistics failed: ${await langRes.text()}`);
             }
 
-            // 5. CREATE EMPLOYER & EMPLOYMENT
+            // 5. EMPLOYMENT
             let currentEmployerId = null;
-            if (formData.employer_name && formData.employer_address) {
-                const employerRes = await fetch(`${API_BASE}/employment/employer`, {
+            if (formData.employer_name) {
+                const empRes = await fetch(`${API_BASE}/employment/employer`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        employer_name: formData.employer_name, employer_address: formData.employer_address,
-                        business_nature: formData.business_nature || null
+                        employer_name: formData.employer_name,
+                        employer_address: formData.employer_address,
+                        business_nature: formData.business_nature
                     })
                 });
-                if (!employerRes.ok) throw new Error(`Employer failed: ${await employerRes.text()}`);
-                const newEmployer = await employerRes.json();
-                currentEmployerId = newEmployer.employer_id;
+                const empData = await empRes.json();
+                currentEmployerId = empData.employer_id;
             }
 
-            const empRes = await fetch(`${API_BASE}/employment`, {
+            await fetch(`${API_BASE}/employment`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    applicant_id: applicantId, employment_status: formData.employment_status,
+                    applicant_id: applicantId,
+                    employment_status: formData.employment_status,
                     position_last_employer: formData.position_last_employer || null,
-                    current_position: formData.current_position, employer_id: currentEmployerId
+                    current_position: formData.current_position,
+                    employer_id: currentEmployerId
                 })
             });
-            if (!empRes.ok) throw new Error(`Employment failed: ${await empRes.text()}`);
 
-            // 6. CREATE CREDENTIALS
+            // 6. CREDENTIALS
             for (const cred of formData.credentials) {
                 if (cred.credential_title) {
-                    const credRes = await fetch(`${API_BASE}/credentials`, {
+                    await fetch(`${API_BASE}/credentials`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ applicant_id: applicantId, credential_title: cred.credential_title })
                     });
-                    if (!credRes.ok) throw new Error(`Credentials failed: ${await credRes.text()}`);
                 }
             }
 
-            // 7. CREATE TRAININGS
+            // 7. TRAININGS
             for (const training of formData.trainings) {
-                if (training.training_cert || training.skill_acquired) {
-                    const trainRes = await fetch(`${API_BASE}/trainings`, {
+                if (training.training_cert?.trim()) {
+                    await fetch(`${API_BASE}/trainings`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            applicant_id: applicantId, training_cert: training.training_cert,
-                            skills: training.skill_acquired, training_period: training.duration
+                            applicant_id: applicantId,
+                            training_cert: training.training_cert.trim(),
+                            skills: training.skill_acquired?.trim() || '',
+                            training_period: training.duration?.trim() || 'N/A'
                         })
                     });
-                    if (!trainRes.ok) throw new Error(`Trainings failed: ${await trainRes.text()}`);
                 }
             }
 
             setIsSuccess(true);
         } catch (error) {
             console.error("Submission failed:", error);
-            alert(`Application Error:\n${error.message}`);
+            alert(`Error: ${error.message}`);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -305,36 +353,84 @@ const ApplicationForm = () => {
                 </div>
 
                 {formData.if_overseas_filipino === 'yes' && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-200 animate-fadeIn">
-                        <div className="flex flex-col">
-                            <label className={labelClass}>Dependent</label>
-                            <select name="of_dependent" value={formData.of_dependent} onChange={handleInputChange} className={inputClass}>
-                                <option value="">Select...</option>
-                                <option value="wife">Wife</option>
-                                <option value="husband">Husband</option>
-                                <option value="parent">Parent</option>
-                                <option value="son">Son</option>
-                                <option value="daughter">Daughter</option>
-                            </select>
+                    <div className="mt-6 pt-6 border-t border-gray-200 animate-fadeIn">
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div className="flex flex-col">
+                                <label className={labelClass}>Applicant's Current OFW Status *</label>
+                                <select
+                                    name="of_status"
+                                    value={formData.of_status}
+                                    onChange={handleInputChange}
+                                    className={inputClass}
+                                    required
+                                >
+                                    <option value="">Select Status...</option>
+                                    <option value="already at jobsite">Already at jobsite</option>
+                                    <option value="vacation">Vacation</option>
+                                    <option value="finished contract">Finished contract</option>
+                                    <option value="repatriated">Repatriated</option>
+                                </select>
+                            </div>
+
+                            <div className="flex flex-col">
+                                <label className={labelClass}>Applicant's Location *</label>
+                                <select
+                                    name="of_location"
+                                    value={formData.of_location}
+                                    onChange={handleInputChange}
+                                    className={inputClass}
+                                    required
+                                >
+                                    <option value="">Select Location...</option>
+                                    <option value="land-based">Land-based</option>
+                                    <option value="sea-based">Sea-based</option>
+                                </select>
+                            </div>
                         </div>
-                        <div className="flex flex-col">
-                            <label className={labelClass}>Location</label>
-                            <select name="of_location" value={formData.of_location} onChange={handleInputChange} className={inputClass}>
-                                <option value="">Select...</option>
-                                <option value="land-based">Land-based</option>
-                                <option value="sea-based">Sea-based</option>
-                            </select>
-                        </div>
-                        <div className="flex flex-col">
-                            <label className={labelClass}>Status</label>
-                            <select name="of_status" value={formData.of_status} onChange={handleInputChange} className={inputClass}>
-                                <option value="">Select...</option>
-                                <option value="already at jobsite">Already at jobsite</option>
-                                <option value="vacation">Vacation</option>
-                                <option value="finished contract">Finished contract</option>
-                                <option value="repatriated">Repatriated</option>
-                            </select>
-                        </div>
+
+                        <h3 className="text-lg font-medium text-gray-700 mb-4">Overseas Dependents</h3>
+
+                        {formData.dependents.map((dependent, index) => (
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 items-end bg-gray-50 p-4 rounded-md">
+                                <div className="flex flex-col">
+                                    <label className={labelClass}>Dependent</label>
+                                    <select
+                                        value={dependent.of_dependent}
+                                        onChange={(e) => handleDependentChange(index, 'of_dependent', e.target.value)}
+                                        className={inputClass}
+                                    >
+                                        <option value="">Select...</option>
+                                        <option value="wife">Wife</option>
+                                        <option value="husband">Husband</option>
+                                        <option value="parent">Parent</option>
+                                        <option value="son">Son</option>
+                                        <option value="daughter">Daughter</option>
+                                    </select>
+                                </div>
+
+                                {/* Remove Button - Only show if there is more than 1 dependent */}
+                                <div className="flex justify-end md:justify-start">
+                                    {formData.dependents.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => removeDependent(index)}
+                                            className="w-full md:w-auto h-12 px-6 py-2 bg-red-100 text-red-600 rounded-md hover:bg-red-200 transition-colors font-bold"
+                                        >
+                                            Remove
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+
+                        <button
+                            type="button"
+                            onClick={addDependent}
+                            className="mt-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors font-bold"
+                        >
+                            + Add Another Dependent
+                        </button>
                     </div>
                 )}
             </div>
@@ -494,7 +590,7 @@ const ApplicationForm = () => {
                     <label className={labelClass}>Current Employment Status *</label>
                     <select name="employment_status" value={formData.employment_status} onChange={handleInputChange} className={inputClass} required>
                         <option value="">Select Status...</option>
-                        <option value="Employed">Employed</option>
+                        <option value="Wage-Employed">Wage-Employed</option>
                         <option value="Unemployed">Unemployed</option>
                         <option value="Self-Employed">Self-Employed</option>
                         <option value="Freelance">Freelance</option>
@@ -549,13 +645,7 @@ const ApplicationForm = () => {
             <div className="min-h-screen bg-[#F8FAFC] p-4 sm:p-8 font-raleway flex justify-center">
                 <div className="max-w-[1400px] w-full flex flex-col lg:flex-row gap-8 lg:gap-12 items-start mt-4 lg:mt-8 relative">
 
-                    {/* LEFT COLUMN:
-                        Added `h-fit` and `self-start` to decouple it from the right column's height.
-                        Removed `space-y-8` and managed spacing internally so it's tighter.
-                        Reduced the bottom margin/padding to make it physically shorter on lg devices.
-                    */}
                     <div className="w-full lg:w-5/12 xl:w-4/12 lg:sticky lg:top-12 h-fit self-start animate-fadeIn">
-
                         <div className="inline-block bg-blue-900 text-white px-5 py-2 rounded-full text-sm font-bold tracking-wide shadow-sm mb-6">
                             Official Registration
                         </div>
@@ -590,7 +680,6 @@ const ApplicationForm = () => {
                         </div>
                     </div>
 
-                    {/* RIGHT COLUMN: The Form Card */}
                     <div className="w-full lg:w-7/12 xl:w-8/12 z-20">
                         <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
                             <div className="p-6 sm:p-8 xl:p-10">
