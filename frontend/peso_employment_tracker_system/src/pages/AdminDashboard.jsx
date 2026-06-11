@@ -12,6 +12,19 @@ export default function AdminDashboard() {
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: null, applicant: null });
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, applicant: null });
 
+  // --- FILTER STATE ---
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    address: '',
+    educationLevel: '',
+    schoolName: '',
+    employmentStatus: '',
+    minSkills: '',
+    minLanguages: '',
+    minCertificates: '',
+    isOfw: ''
+  });
+
   // --- 1. FETCH DATA ON LOAD ---
   useEffect(() => {
     fetchDashboardData();
@@ -27,7 +40,6 @@ export default function AdminDashboard() {
       if (!res.ok) {
         console.error('Failed to fetch applicants:', res.status, res.statusText);
         if (res.status === 401 || res.status === 403) {
-          // Unauthorized - token missing/invalid. Clear token and stop.
           localStorage.removeItem('adminToken');
         }
         setApplicants([]);
@@ -35,19 +47,51 @@ export default function AdminDashboard() {
       }
 
       const data = await res.json();
+      console.log('DEBUG: API response sample:', data[0]); // TEMP: Check if employment_status exists
       setApplicants(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to fetch dashboard data:", err);
     }
   };
 
-  // --- Admin User ---
   const [adminUsername, setAdminUsername] = useState(null);
 
-  // --- Derived Statistics ---
   const totalApplicants = applicants.length;
   const totalHired = applicants.filter(a => a.status === 'Hired').length;
   const totalRejected = applicants.filter(a => a.status === 'Rejected').length;
+
+  // --- DYNAMIC FILTERING LOGIC ---
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      address: '', educationLevel: '', schoolName: '', employmentStatus: '',
+      minSkills: '', minLanguages: '', minCertificates: '', isOfw: ''
+    });
+  };
+
+  const getFilteredApplicants = (baseStatusList) => {
+    return baseStatusList.filter(app => {
+      // 1. Safe String Matches (Guards against null/undefined crashing the page)
+      if (filters.address && !(app.address || '').toLowerCase().includes(filters.address.toLowerCase())) return false;
+      if (filters.educationLevel && !(app.highest_education || '').toLowerCase().includes(filters.educationLevel.toLowerCase())) return false;
+      if (filters.schoolName && !(app.school_name || '').toLowerCase().includes(filters.schoolName.toLowerCase())) return false;
+
+      // Exact string matches (trim to handle potential DB whitespace)
+      if (filters.employmentStatus && (app.employment_status || '').trim().toLowerCase() !== filters.employmentStatus.trim().toLowerCase()) return false;
+      if (filters.isOfw && (app.if_overseas_filipino || 'No').trim().toLowerCase() !== filters.isOfw.trim().toLowerCase()) return false;
+
+      // 2. Safe Aggregate Number Matches
+      if (filters.minSkills && (parseInt(app.total_skills) || 0) < parseInt(filters.minSkills)) return false;
+      if (filters.minLanguages && (parseInt(app.total_languages) || 0) < parseInt(filters.minLanguages)) return false;
+      if (filters.minCertificates && (parseInt(app.total_certificates) || 0) < parseInt(filters.minCertificates)) return false;
+
+      return true;
+    });
+  };
 
   // --- 2. ACTIONS TO EXPRESS BACKEND ---
   const handleStatusConfirm = async () => {
@@ -56,8 +100,6 @@ export default function AdminDashboard() {
 
     try {
       const token = localStorage.getItem('adminToken');
-
-      // 1. Send the request
       const response = await fetch(`${API_BASE}/admin/applicants/${applicant.applicant_id}/status`, {
         method: 'PUT',
         headers: {
@@ -67,22 +109,15 @@ export default function AdminDashboard() {
         body: JSON.stringify({ status: newStatus })
       });
 
-      // 2. IMPORTANT: Check if the response was successful
       if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error("Unauthorized: Your session may have expired. Please log in again.");
-        }
+        if (response.status === 401) throw new Error("Unauthorized: Session expired.");
         throw new Error(`Server responded with ${response.status}`);
       }
 
-      // 3. Update the UI only after successful response
       setApplicants(applicants.map(app =>
         app.applicant_id === applicant.applicant_id ? { ...app, status: newStatus } : app
       ));
-
-      // 4. Trigger notification logic
       setConfirmModal({ isOpen: false, type: null, applicant: null });
-
     } catch (err) {
       console.error("Failed to update status:", err);
     }
@@ -98,19 +133,15 @@ export default function AdminDashboard() {
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        console.error('Failed to delete applicant:', res.status, text);
         alert('Failed to delete record. Check console for details.');
         setDeleteModal({ isOpen: false, applicant: null });
         return;
       }
 
-      // Remove from UI
       setApplicants(prev => prev.filter(a => a.applicant_id !== applicant.applicant_id));
       setDeleteModal({ isOpen: false, applicant: null });
     } catch (err) {
       console.error('Error deleting applicant:', err);
-      alert('Error deleting record. Is the backend running?');
       setDeleteModal({ isOpen: false, applicant: null });
     }
   };
@@ -123,14 +154,11 @@ export default function AdminDashboard() {
       });
 
       if (!adminRes.ok) {
-        console.error('Failed to fetch admin user:', adminRes.status);
         if (adminRes.status === 401 || adminRes.status === 403) localStorage.removeItem('adminToken');
         return;
       }
-
       const adminData = await adminRes.json();
       setAdminUsername(adminData.username || null);
-
     } catch (error) {
       console.error("Error fetching admin user", error);
     }
@@ -145,7 +173,6 @@ export default function AdminDashboard() {
       const token = localStorage.getItem('adminToken');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      // Added the overseas fetch into the Promise.all array
       const [applicantRes, credRes, trainRes, eduRes, langRes, empRes, overseasRes] = await Promise.all([
         fetch(`${API_BASE}/admin/applicants/${app.applicant_id}`, { headers }).catch(() => ({ ok: false })),
         fetch(`${API_BASE}/credentials/${app.applicant_id}`, { headers }).catch(() => ({ ok: false })),
@@ -165,7 +192,6 @@ export default function AdminDashboard() {
       const employmentArray = empRes.ok ? await empRes.json() : [];
       const employmentData = employmentArray.length > 0 ? employmentArray[0] : {};
 
-      // Parse Overseas Data
       const overseasArray = overseasRes.ok ? await overseasRes.json() : [];
       const baseOverseas = overseasArray.length > 0 ? overseasArray[0] : { if_overseas_filipino: 'no' };
 
@@ -173,19 +199,14 @@ export default function AdminDashboard() {
         if_overseas_filipino: baseOverseas.if_overseas_filipino || 'no',
         of_status: baseOverseas.of_status || null,
         of_location: baseOverseas.of_location || null,
-        // Extract array of dependents from the rows returned
         dependents: overseasArray.filter(row => row.of_dependent).map(row => row.of_dependent)
       };
 
       setSelectedApplicant(prev => ({
-        ...prev,
-        ...fullApplicantData,
-        ...employmentData,
-        credentials: credentialsData,
-        trainings: trainingsData,
-        education: educationData,
-        linguistics: linguisticsData,
-        overseas_filipinos: overseasParsedData // Inject formatted OFW data
+        ...prev, ...fullApplicantData, ...employmentData,
+        credentials: credentialsData, trainings: trainingsData,
+        education: educationData, linguistics: linguisticsData,
+        overseas_filipinos: overseasParsedData
       }));
     } catch (err) {
       console.error("Error fetching full profile:", err);
@@ -245,14 +266,12 @@ export default function AdminDashboard() {
                 <td className="px-6 py-5">{getStatusBadge(app.status)}</td>
                 <td className="px-6 py-5 text-right">
                   <div className="flex justify-end gap-2 items-center">
-
                     <button
                       onClick={() => handleViewDetails(app)}
                       className="px-4 py-2 text-blue-700 hover:text-white border border-blue-200 hover:bg-blue-700 hover:border-blue-700 rounded-lg text-xs font-bold transition-all"
                     >
                       View Profile
                     </button>
-
                     {showActions && app.status === 'Pending' && (
                       <>
                         <button
@@ -269,7 +288,6 @@ export default function AdminDashboard() {
                         </button>
                       </>
                     )}
-
                     {(activeTab === 'hired' || activeTab === 'rejected') && (
                       <>
                         <button
@@ -286,7 +304,7 @@ export default function AdminDashboard() {
             ))}
             {filteredApplicants.length === 0 && (
               <tr>
-                <td colSpan="5" className="px-6 py-16 text-center text-gray-400 font-semibold text-base">No applicants found in this category.</td>
+                <td colSpan="5" className="px-6 py-16 text-center text-gray-400 font-semibold text-base">No applicants found matching your criteria.</td>
               </tr>
             )}
           </tbody>
@@ -295,9 +313,20 @@ export default function AdminDashboard() {
     </div>
   );
 
+  const calculateCurrentAge = (birthdateString) => {
+    if (!birthdateString) return 'N/A';
+    const birthDate = new Date(birthdateString);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDifference = today.getMonth() - birthDate.getMonth();
+    if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-raleway text-gray-800">
-
       {/* --- Sidebar --- */}
       <aside className="w-72 bg-white border-r border-gray-200 flex flex-col z-10 shrink-0 shadow-sm">
         <div className="h-20 flex items-center px-8 border-b-4 border-red-800">
@@ -324,9 +353,7 @@ export default function AdminDashboard() {
           </h1>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-4 bg-[#F8FAFC] px-5 py-2.5 rounded-xl border border-gray-200">
-              <span className={`text-sm font-bold ${isBlindMode ? 'text-blue-700' : 'text-gray-500'}`}>
-                Blind Mode Screening
-              </span>
+              <span className={`text-sm font-bold ${isBlindMode ? 'text-blue-700' : 'text-gray-500'}`}>Blind Mode Screening</span>
               <button
                 onClick={() => setIsBlindMode(!isBlindMode)}
                 className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${isBlindMode ? 'bg-blue-700' : 'bg-gray-300'}`}
@@ -334,10 +361,79 @@ export default function AdminDashboard() {
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${isBlindMode ? 'translate-x-6' : 'translate-x-1'} shadow-sm`} />
               </button>
             </div>
+
+            {/* Filter Toggle Button */}
+            {activeTab !== 'dashboard' && (
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all border ${showFilters ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                Filters
+              </button>
+            )}
           </div>
         </header>
 
         <div className="flex-1 overflow-auto p-10 relative">
+
+          {/* --- FILTER PANEL UI --- */}
+          {showFilters && activeTab !== 'dashboard' && (
+            <div className="bg-white border border-blue-200 rounded-2xl p-6 mb-8 shadow-sm animate-fadeIn">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-extrabold text-blue-900 text-lg">Advanced SQL Filters</h3>
+                <button onClick={clearFilters} className="text-sm font-bold text-red-600 hover:text-red-800">Clear All</button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">Location / Address</label>
+                  <input type="text" name="address" value={filters.address} onChange={handleFilterChange} placeholder="e.g. Manila" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">Education Level</label>
+                  <input type="text" name="educationLevel" value={filters.educationLevel} onChange={handleFilterChange} placeholder="e.g. Bachelor" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">School Name</label>
+                  <input type="text" name="schoolName" value={filters.schoolName} onChange={handleFilterChange} placeholder="e.g. Polytechnic" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">Employment Status</label>
+                  <select name="employmentStatus" value={filters.employmentStatus} onChange={handleFilterChange} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">All</option>
+                    <option value="Wage-Employed">Wage-Employed</option>
+                    <option value="Self-Employed">Self-Employed</option>
+                    <option value="Unemployed">Unemployed</option>
+                    <option value="Finished Contract">Finished Contract</option>
+                    <option value="Resigned">Resigned</option>
+                    <option value="Terminated/Laid Off">Terminated Laid Off</option>
+                    <option value="Close Shop">Close Shop</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">OFW Status</label>
+                  <select name="isOfw" value={filters.isOfw} onChange={handleFilterChange} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                    <option value="">All</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">Min. Certifications ({'>'}X)</label>
+                  <input type="number" name="minCertificates" value={filters.minCertificates} onChange={handleFilterChange} min="0" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">Min. Languages ({'>'}X)</label>
+                  <input type="number" name="minLanguages" value={filters.minLanguages} onChange={handleFilterChange} min="0" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">Min. Skills ({'>'}X)</label>
+                  <input type="number" name="minSkills" value={filters.minSkills} onChange={handleFilterChange} min="0" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500" />
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'dashboard' && (
             <div className="animate-fadeIn max-w-[1400px]">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
@@ -362,21 +458,21 @@ export default function AdminDashboard() {
           {activeTab === 'applicants' && (
             <div className="animate-fadeIn max-w-[1400px]">
               <p className="text-gray-600 font-medium mb-8 text-lg">Review pending applications and make hiring decisions.</p>
-              {renderTable(applicants.filter(a => a.status === 'Pending'), true)}
+              {renderTable(getFilteredApplicants(applicants.filter(a => a.status === 'Pending')), true)}
             </div>
           )}
 
           {activeTab === 'hired' && (
             <div className="animate-fadeIn max-w-[1400px]">
               <p className="text-gray-600 font-medium mb-8 text-lg">Record of all officially hired candidates.</p>
-              {renderTable(applicants.filter(a => a.status === 'Hired'), true)}
+              {renderTable(getFilteredApplicants(applicants.filter(a => a.status === 'Hired')), true)}
             </div>
           )}
 
           {activeTab === 'rejected' && (
             <div className="animate-fadeIn max-w-[1400px]">
               <p className="text-gray-600 font-medium mb-8 text-lg">Record of applicants who did not meet qualifications.</p>
-              {renderTable(applicants.filter(a => a.status === 'Rejected'), true)}
+              {renderTable(getFilteredApplicants(applicants.filter(a => a.status === 'Rejected')), true)}
             </div>
           )}
         </div>
@@ -426,10 +522,21 @@ export default function AdminDashboard() {
                     <span className="block text-gray-500 font-bold mb-1">Address</span>
                     <span className="font-extrabold text-gray-900 text-base">{selectedApplicant.address}</span>
                   </div>
+
+                  {/* Birthdate */}
                   <div>
                     <span className="block text-gray-500 font-bold mb-1">Birthdate</span>
                     <span className="font-extrabold text-gray-900 text-base">{isBlindMode ? 'HIDDEN' : selectedApplicant.birthdate?.split('T')[0]}</span>
                   </div>
+
+                  {/* Dynamic Current Age */}
+                  <div>
+                    <span className="block text-gray-500 font-bold mb-1">Age</span>
+                    <span className="font-extrabold text-gray-900 text-base">
+                      {isBlindMode ? 'HIDDEN' : calculateCurrentAge(selectedApplicant.birthdate)}
+                    </span>
+                  </div>
+
                   <div>
                     <span className="block text-gray-500 font-bold mb-1">Place of Birth</span>
                     <span className="font-extrabold text-gray-900 text-base">{selectedApplicant.place_birth || 'Not Provided'}</span>

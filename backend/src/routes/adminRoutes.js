@@ -4,32 +4,85 @@ import { verifyToken } from '../middleware/authMiddleware.js';
 import { sendStatusEmail } from '../utils/emailService.js';
 const router = express.Router();
 
-
-
+// ==========================================
 // 1. GET: Fetch all applicants for the summary table
+// ==========================================
 router.get('/applicants', verifyToken, async (req, res) => {
   try {
     const query = `
-      SELECT 
-        a.applicant_id, a.name, a.address, a.birthdate, a.sex, 
-        a.civil_status, a.mobile_no, a.email_address, a.application_status as status,
-        (SELECT current_position FROM employment WHERE applicant_id = a.applicant_id ORDER BY employment_id DESC LIMIT 1) as current_position,
-        (SELECT educ_level || ' - ' || school_name FROM education_level WHERE applicant_id = a.applicant_id ORDER BY year_graduated DESC LIMIT 1) as highest_education
+      SELECT DISTINCT ON (a.applicant_id)
+        a.*,
+        a.application_status AS status, -- Aliased for React frontend compatibility
+        emp.employment_status,
+        o.if_overseas_filipino,
+        ed.educ_level AS highest_education,
+        ed.school_name,
+        COALESCE(s.total_skills, 0) AS total_skills,
+        COALESCE(l.total_languages, 0) AS total_languages,
+        COALESCE(c.total_certificates, 0) AS total_certificates
       FROM applicant a
+      
+      -- 1. Join Employment Status (use subquery to get one row per applicant)
+      LEFT JOIN (
+        SELECT DISTINCT ON (applicant_id) applicant_id, employment_status 
+        FROM employment
+        ORDER BY applicant_id, employment_id DESC
+      ) emp ON a.applicant_id = emp.applicant_id
+      
+      -- 2. Join Overseas Status (use subquery to get one row per applicant)
+      LEFT JOIN (
+        SELECT DISTINCT ON (applicant_id) applicant_id, if_overseas_filipino 
+        FROM overseas_filipino
+        ORDER BY applicant_id
+      ) o ON a.applicant_id = o.applicant_id
+
+      -- 3. Join Education Level (get the highest/latest education record)
+      LEFT JOIN (
+        SELECT DISTINCT ON (applicant_id) applicant_id, educ_level, school_name
+        FROM education_level
+        ORDER BY applicant_id, year_graduated DESC
+      ) ed ON a.applicant_id = ed.applicant_id
+      
+      -- 4. Aggregate Skills count
+      LEFT JOIN (
+        SELECT applicant_id, COUNT(*) as total_skills 
+        FROM trainings 
+        GROUP BY applicant_id
+      ) s ON a.applicant_id = s.applicant_id
+      
+      -- 5. Aggregate Languages count
+      LEFT JOIN (
+        SELECT applicant_id, COUNT(*) as total_languages 
+        FROM linguistics 
+        GROUP BY applicant_id
+      ) l ON a.applicant_id = l.applicant_id
+      
+      -- 6. Aggregate Credentials count
+      LEFT JOIN (
+        SELECT applicant_id, COUNT(*) as total_certificates 
+        FROM credentials 
+        GROUP BY applicant_id
+      ) c ON a.applicant_id = c.applicant_id
+      
       ORDER BY a.applicant_id DESC;
     `;
+
+    // Fixed: Changed 'db.query' to 'pool.query' to match your import
     const result = await pool.query(query);
-    res.json(result.rows);
-  } catch (err) {
-    console.error("Error fetching dashboard data:", err.message);
-    res.status(500).send('Server Error');
+    
+    res.status(200).json(result.rows);
+
+  } catch (error) {
+    console.error("Error fetching dashboard applicants:", error);
+    res.status(500).json({ error: "Internal server error fetching applicants." });
   }
 });
 
-//Fetch admin user details
+// ==========================================
+// Fetch admin user details
+// ==========================================
 router.get('/admin-user', verifyToken, async (req, res) => {
   try {
-    // authRoutes uses `admin_users` and stores `username` there. Query the same table.
     const admin = await pool.query(
       'SELECT admin_id, username FROM admin_users WHERE admin_id = $1',
       [req.user.admin_id]
@@ -44,12 +97,13 @@ router.get('/admin-user', verifyToken, async (req, res) => {
   }
 });
 
+// ==========================================
 // GET: Fetch full details of a specific applicant by ID
+// ==========================================
 router.get('/applicants/:id', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Selects ALL columns from the applicant table (including height, weight, etc.)
     const query = `SELECT * FROM applicant WHERE applicant_id = $1`;
     const result = await pool.query(query, [id]);
 
@@ -57,7 +111,6 @@ router.get('/applicants/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Applicant not found" });
     }
 
-    // Sends the full row back to the React frontend
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Error fetching single applicant profile:", err.message);
@@ -65,7 +118,9 @@ router.get('/applicants/:id', verifyToken, async (req, res) => {
   }
 });
 
+// ==========================================
 // 2. PUT: Update an applicant's status (Hire/Reject)
+// ==========================================
 router.put('/applicants/:id/status', verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -80,7 +135,6 @@ router.put('/applicants/:id/status', verifyToken, async (req, res) => {
     const email = appRes.rows[0]?.email_address;
 
     if (email) {
-      // Pass the real email here; the service will override the 'to' field if DEMO_EMAIL is set
       await sendStatusEmail(email, status);
       console.log(`Notification email logic triggered for ${email}`);
     }
@@ -92,14 +146,15 @@ router.put('/applicants/:id/status', verifyToken, async (req, res) => {
   }
 });
 
-// DELETE: Remove an applicant record (admin only)
-router.delete('/applicants/:id/delete', async (req, res) => {
+// ==========================================
+// DELETE: Remove an applicant record
+// ==========================================
+router.delete('/applicants/:id/delete', verifyToken, async (req, res) => {
   const { id } = req.params;
   try {
-    // Start a transaction to ensure all or nothing is deleted
     await pool.query('BEGIN');
 
-    // 1. Delete dependent records first
+    // Delete dependent records first
     await pool.query('DELETE FROM education_level WHERE applicant_id = $1', [id]);
     await pool.query('DELETE FROM credentials WHERE applicant_id = $1', [id]);
     await pool.query('DELETE FROM trainings WHERE applicant_id = $1', [id]);
@@ -107,7 +162,7 @@ router.delete('/applicants/:id/delete', async (req, res) => {
     await pool.query('DELETE FROM employment WHERE applicant_id = $1', [id]);
     await pool.query('DELETE FROM overseas_filipino WHERE applicant_id = $1', [id]);
 
-    // 2. Finally, delete the applicant
+    // Finally, delete the applicant
     const result = await pool.query('DELETE FROM applicant WHERE applicant_id = $1', [id]);
 
     await pool.query('COMMIT');
@@ -116,18 +171,16 @@ router.delete('/applicants/:id/delete', async (req, res) => {
 
     res.json({ message: "Applicant and related data deleted successfully" });
   } catch (err) {
-    await pool.query('ROLLBACK'); // Undo if any step fails
+    await pool.query('ROLLBACK');
     console.error("Delete Error:", err.message);
     res.status(500).send('Server Error');
   }
 });
 
 // ==========================================
-// 2. THE BLIND RECRUITMENT SCREENING ROUTE
+// THE BLIND RECRUITMENT SCREENING ROUTE
 // ==========================================
-// This route purposely omits the name, exact address, birthdate, and sex.
-// It joins the education table so the admin only sees raw qualifications.
-router.get('/blind-screening', async (req, res) => {
+router.get('/blind-screening', verifyToken, async (req, res) => {
   try {
     const blindQuery = `
       SELECT 
@@ -152,10 +205,9 @@ router.get('/blind-screening', async (req, res) => {
 });
 
 // ==========================================
-// 3. THE STATUS UPDATER (PATCH Route)
+// THE STATUS UPDATER (PATCH Route)
 // ==========================================
-// Admins use this to change a candidate from 'Pending' to 'Shortlisted', etc.
-router.patch('/status/:applicantId', async (req, res) => {
+router.patch('/status/:applicantId', verifyToken, async (req, res) => {
   try {
     const { applicantId } = req.params;
     const { new_status } = req.body;

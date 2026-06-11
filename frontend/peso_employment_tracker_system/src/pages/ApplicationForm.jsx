@@ -369,6 +369,7 @@ const ApplicationForm = () => {
                                     <option value="already at jobsite">Already at jobsite</option>
                                     <option value="vacation">Vacation</option>
                                     <option value="finished contract">Finished contract</option>
+                                    <option value="Willing to go back to work">Willing to go back to work</option>
                                     <option value="repatriated">Repatriated</option>
                                 </select>
                             </div>
@@ -461,7 +462,7 @@ const ApplicationForm = () => {
 
                         {edu.educ_level === 'college' && (
                             <div className="flex flex-col animate-fadeIn">
-                                <label className={labelClass}>Degree Title *</label>
+                                <label className={labelClass}>Course/Degree/Highest *</label>
                                 <input type="text" value={edu.highest_level_comp} onChange={(e) => handleEducationChange(index, 'highest_level_comp', e.target.value)} className={inputClass} placeholder="e.g., BS Information Technology" required />
                             </div>
                         )}
@@ -591,10 +592,12 @@ const ApplicationForm = () => {
                     <select name="employment_status" value={formData.employment_status} onChange={handleInputChange} className={inputClass} required>
                         <option value="">Select Status...</option>
                         <option value="Wage-Employed">Wage-Employed</option>
-                        <option value="Unemployed">Unemployed</option>
                         <option value="Self-Employed">Self-Employed</option>
-                        <option value="Freelance">Freelance</option>
-                        <option value="Student">Student</option>
+                        <option value="Unemployed">Unemployed</option>
+                        <option value="Finished Contract">Finished Contract</option>
+                        <option value="Resigned">Resigned</option>
+                        <option value="Terminated/Laid Off">Terminated Laid Off</option>
+                        <option value="Close Shop">Close Shop</option>
                     </select>
                 </div>
                 <div className="flex flex-col">

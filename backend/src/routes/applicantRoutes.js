@@ -3,6 +3,22 @@ import pool from '../config/db.js';
 
 const router = express.Router();
 
+// Helper function to calculate age
+const calculateAge = (birthdateString) => {
+  const birthDate = new Date(birthdateString);
+  const today = new Date();
+  
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDifference = today.getMonth() - birthDate.getMonth();
+  
+  // Subtract 1 year if the birthday hasn't happened yet this year
+  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  
+  return age;
+};
+
 router.get('/', async (req, res) => {
   try {
     const allApplicants = await pool.query('SELECT * FROM applicant');
@@ -28,18 +44,24 @@ router.post('/', async (req, res) => {
       );
 
       if (emailCheck.rows.length > 0) {
-        // Return a 400 status with a specific error message
         return res.status(400).json({ error: 'An application with this email address already exists.' });
       }
     }
 
-    // 2. IF EMAIL IS UNIQUE, INSERT APPLICANT
+    // 2. CALCULATE AGE BASED ON BIRTHDATE
+    // Ensure birthdate exists to avoid calculation errors
+    let age = null;
+    if (birthdate) {
+      age = calculateAge(birthdate);
+    }
+
+    // 3. IF EMAIL IS UNIQUE, INSERT APPLICANT
     const newApplicant = await pool.query(
       `INSERT INTO applicant 
-        (name, address, birthdate, place_birth, sex, height, weight, civil_status, landline_no, mobile_no, email_address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        (name, address, birthdate, age, place_birth, sex, height, weight, civil_status, landline_no, mobile_no, email_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
-      [name, address, birthdate, place_birth, sex, height, weight, civil_status, landline_no, mobile_no, email_address]
+      [name, address, birthdate, age, place_birth, sex, height, weight, civil_status, landline_no, mobile_no, email_address]
     );
 
     res.json(newApplicant.rows[0]);
