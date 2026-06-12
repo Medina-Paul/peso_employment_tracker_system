@@ -74,7 +74,7 @@ export default function AdminDashboard() {
   };
 
   const getFilteredApplicants = (baseStatusList) => {
-    return baseStatusList.filter(app => {
+    const filtered = baseStatusList.filter(app => {
       // 1. Safe String Matches (Guards against null/undefined crashing the page)
       if (filters.address && !(app.address || '').toLowerCase().includes(filters.address.toLowerCase())) return false;
       if (filters.educationLevel && !(app.highest_education || '').toLowerCase().includes(filters.educationLevel.toLowerCase())) return false;
@@ -91,6 +91,27 @@ export default function AdminDashboard() {
 
       return true;
     });
+
+    // 3. Sort descending by the active numeric filter so the most qualified show first
+    if (filters.minSkills || filters.minLanguages || filters.minCertificates) {
+      filtered.sort((a, b) => {
+        const aSkills = parseInt(a.total_skills) || 0;
+        const bSkills = parseInt(b.total_skills) || 0;
+        const aLangs = parseInt(a.total_languages) || 0;
+        const bLangs = parseInt(b.total_languages) || 0;
+        const aCerts = parseInt(a.total_certificates) || 0;
+        const bCerts = parseInt(b.total_certificates) || 0;
+
+        // Primary sort by whichever filter is active (descending)
+        if (filters.minSkills && aSkills !== bSkills) return bSkills - aSkills;
+        if (filters.minLanguages && aLangs !== bLangs) return bLangs - aLangs;
+        if (filters.minCertificates && aCerts !== bCerts) return bCerts - aCerts;
+
+        return 0;
+      });
+    }
+
+    return filtered;
   };
 
   // --- 2. ACTIONS TO EXPRESS BACKEND ---
